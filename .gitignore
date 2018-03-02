@@ -1,3 +1,7 @@
 *.pyc
 data/ele-cache-*
 condor
+
+Example/Cache/*
+Example/Data/*
+Example/Output/*

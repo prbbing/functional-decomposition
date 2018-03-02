@@ -1,0 +1,35 @@
+This package is a self-contained implementation of functional decomposition, a semi-parametric
+method for fitting mass spectra and producing searches and limits.
+
+------------------------
+RUNNING THE EXAMPLE CASE
+------------------------
+
+1. Enter the FD directory and set up the code:
+
+       cd <FD_DIR>
+       . bin/setup_bash.sh
+
+   This will also check if the required Python packages are available, and warn you if
+   they are not.
+
+2. Enter the example directory and import / generate the test data:
+
+        cd Example
+        fd_generate.py --setname Test --varname Myy --wgtname weight --size 12000000
+        fd_import.py Input/*
+
+   fd_generate.py produces a random sample of background-like data. fd_import.py imports
+   the CSV files in Input, which contain Gaussian signal shapes.  In a real application,
+   you would use fd_import to read your data (either as .csv or .root).
+
+3. Run the scan
+
+        fd_scan.py
+
+   That's it! The output will be located in Output/*.  The example is configured to run
+   fine-grained mass scans using Gaussians at two different widths.  Because this tests
+   about ~600 different signal hypotheses, the example can take a while to run.  If you'd
+   like a quicker example, open up 'base.conf' and comment out the scans and scan plots. :)
+
+
