@@ -4,7 +4,7 @@ TOPDIR=`dirname ${BINDIR}`
 
 if [ ".$QUIET" == "." ]
 then
-    printf
+    printf "\n"
     printf "\e[30m\e[107mIMPORTANT\e[0m: make sure you __source__ this script\n"
     printf "rather than execute it:\n"
     printf "\n"
