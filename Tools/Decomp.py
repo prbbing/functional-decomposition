@@ -173,7 +173,7 @@ class Optimizer(ParametricObject):
             try:
                 self.DataSet.SetN(j)
 
-                Raw = D.TestS.KL(D.Full)
+                Raw = D.TestS.LogP(D.Full)
                 Pen = self.Prior.KL(D.TestB, ScaleStatPre=j)
                 pdot()
             except (np.linalg.linalg.LinAlgError, ValueError):
