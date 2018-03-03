@@ -2,6 +2,19 @@
 BINDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOPDIR=`dirname ${BINDIR}`
 
+checkPyModule()
+{
+    PACKAGE=$1
+    VERSION=$(python -c "$2" 2>/dev/null )
+
+    if [ $? -ne 0 ]
+    then
+        printf "%12s (%b)\n" "${PACKAGE}" "\e[31mnot found\e[0m"
+    else
+        printf "%12s (%b)\n" "${PACKAGE}" "\e[32mfound ${VERSION}\e[0m"
+    fi
+}
+
 if [ ".$QUIET" == "." ]
 then
     printf "\n"
@@ -18,17 +31,12 @@ then
     printf "\n"
 
     printf "Python package dependency check:\n"
-    for PACKAGE in numpy scipy numexpr matplotlib ROOT
+    for PACKAGE in numpy scipy numexpr matplotlib
     do
-        VERSION=$(python -c "import ${PACKAGE}; print ${PACKAGE}.__version__" 2>/dev/null )
-
-        if [ $? -ne 0 ]
-        then
-            printf "%12s (%b)\n" "${PACKAGE}" "\e[31mnot found\e[0m"
-        else
-            printf "%12s (%b)\n" "${PACKAGE}" "\e[32mfound ${VERSION}\e[0m"
-        fi
+        checkPyModule $PACKAGE "import ${PACKAGE}; print ${PACKAGE}.__version__"
     done
+    checkPyModule "ROOT" "import ROOT; print ROOT.gROOT.GetVersion()"
+
     printf "\n"
     printf "ROOT is __optional__, and is required only to import Tree objects from\n"
     printf "  .root files.  If ROOT is not installed, you can still import .csv\n"
