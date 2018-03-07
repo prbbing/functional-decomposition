@@ -1,9 +1,22 @@
 This package is a self-contained implementation of functional decomposition, a semi-parametric
 method for fitting mass spectra and producing searches and limits.
 
-------------------------
-RUNNING THE EXAMPLE CASE
-------------------------
+-------------------------
+RUNNING THE EXAMPLE CASES
+-------------------------
+There are three examples provided with varying levels of complexity.
+   bg_only       Decompose a single smooth spectrum using the orthonormal exponentials.
+   sig_bkg       Decompose a smooth spectrum with two known bumps using the orthonormal
+                 exponentials as a background model, and two Gaussians to model the
+                 two known bumps.
+   sig_bkg_scan  Decompose a smooth spectrum with two known bumps, orthonormal exponentials
+                 for the background, and two Gaussian to model the two known bumps.  Then
+                 scan a third signal peak through several masses and widths to search
+                 for bumps.
+
+The third example tests about ~600 different signal hypotheses, so it can take a little
+while to run (20 minutes or so on my laptop).  The first two examples should run in
+only a few minutes.  All three can be run as follows:
 
 1. Enter the FD directory and set up the code:
 
@@ -15,21 +28,20 @@ RUNNING THE EXAMPLE CASE
 
 2. Enter the example directory and import / generate the test data:
 
-        cd Example
+        cd Examples/<Example_Name>
         fd_generate.py --setname Test --varname Myy --wgtname weight --size 12000000
         fd_import.py Input/*
 
    fd_generate.py produces a random sample of background-like data. fd_import.py imports
    the CSV files in Input, which contain Gaussian signal shapes.  In a real application,
-   you would use fd_import to read your data (either as .csv or .root).
+   you would use fd_import.py to read your data (either as .csv or .root).  Note that
+   for the 'bg_only' example, 'fd_import' is unnecessary.
 
 3. Run the scan
 
         fd_scan.py
 
-   That's it! The output will be located in Output/*.  The example is configured to run
-   fine-grained mass scans using Gaussians at two different widths.  Because this tests
-   about ~600 different signal hypotheses, the example can take a while to run.  If you'd
-   like a quicker example, open up 'base.conf' and comment out the scans and scan plots. :)
-
+That's it! The output will be located in Output/*.  Each plot is saved as an individual
+pdf file, and additionally all plots are saved together as a multipage pdf in
+Output/all.pdf
 
