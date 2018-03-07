@@ -163,7 +163,8 @@ D.SetN(N=NBest, attr="Mom")    # attr="Mom": use the full expansions from here o
 MomT = D.Full.Mom.copy()
 
 D.Covariance()
-D.PrepSignalEstimators(reduced=False, verbose=True)
+if len(D.Signals) > 0:
+    D.PrepSignalEstimators(reduced=False, verbose=True)
 
 ### Calculate yields, uncertainties and CLs
 fmt = {
