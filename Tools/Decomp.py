@@ -269,22 +269,26 @@ class DataSet(ParametricObject):
 
     # Decompose the dataset and active signals
     @pstage("Decomposing")
-    def Decompose(self, reduced=True, cksize=2**20):
+    def Decompose(self, reduced=True, xonly=False, cksize=2**20):
         pini("Data Moments")
-        N          = self.Factory["Ntrunc"]
+        N             = self.Factory["Ntrunc"]
+        Nb            = self.Factory["Nxfrm"] if xonly else self.Factory["Nbasis"]
 
-        self.Mom   = self.Factory.CachedDecompose(self.x, self.w, str(self.uid), cksize=cksize)
-        self.MomX  = np.zeros((self.Factory["Nxfrm"],))
+        self.Mom      = np.zeros((self.Factory["Nbasis"],))
+        self.MomX     = np.zeros((self.Factory["Nxfrm"],))
 
-        self.Full  = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
-        self.TestS = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
-        self.TestB = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
+        self.Mom[:Nb] = self.Factory.CachedDecompose(self.x, self.w, str(self.uid), cksize=cksize, Nbasis=Nb)
+
+
+        self.Full     = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
+        self.TestS    = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
+        self.TestB    = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
         pend()
 
         Act = self.GetActive() if reduced else self.Signals
         for name  in Act:
             pini("%s Moments" % name)
-            self[name].Decompose(cksize=cksize)
+            self[name].Decompose(cksize=cksize, Nbasis=Nb)
             pend()
 
     # Solve for the raw signal estimators.  Use Cholesky decomposition,
@@ -396,9 +400,11 @@ class DataSet(ParametricObject):
 ## A parametric signal model.
 ###
 class ParametricSignal(object):
-    def Decompose(self, cksize=2**20):
-        self.Mom[:]  = self.CachedDecompose(cksize)
-        self.MomX[:] = 0
+    def Decompose(self, cksize=2**20, **kwargs):
+        Mom                 = self.CachedDecompose(cksize, **kwargs)
+        self.Mom[:len(Mom)] = Mom
+        self.Mom[len(Mom):] = 0
+        self.MomX[:]        = 0
 
     # Decompose the signal sample data.
     @Cache.Element("{self.Factory.CacheDir}", "Decompositions", "{self.Factory}", "{self.name}.npy")

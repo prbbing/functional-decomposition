@@ -110,6 +110,11 @@ class DecompFactory(ParametricObject):
 
     # Decompose the dataset 'x' with weights 'w' and return the moments.
     def Decompose(self, x, w, cksize=2**20, **kw):
+        Nb   = kw.pop("Nbasis", 0)
+
+        if Nb <= 0:
+            Nb = self["Nbasis"]
+
         Fn   = self.Fn(x[:cksize+1], w[:cksize+1], **kw)
         Mom  = np.zeros( (Fn["Nbasis"],) )
 
@@ -121,9 +126,9 @@ class DecompFactory(ParametricObject):
         return Mom
 
     # Decompose the dataset and cache the results.
-    @Cache.Element("{self.CacheDir}", "Decompositions", "{self}", "{2:s}.npy")
-    def CachedDecompose(self, x, w, name, cksize=2**20, **kw):
-        return self.Decompose(x, w, cksize, **kw)
+    @Cache.Element("{self.CacheDir}", "Decompositions", "{self}", "{2:s}-{Nbasis}.npy")
+    def CachedDecompose(self, x, w, name, cksize=2**20, Nbasis=0, **kwargs):
+        return self.Decompose(x, w, cksize, Nbasis=Nbasis, **kwargs)
 
     def __init__(self, **kwargs):
         self.Nthread    = kwargs.get('Nthread',  1)

@@ -147,10 +147,10 @@ print
 ######
 
 ### decompose; scan hyperparameters; decompose; fit from best location.
-D.Decompose()
+D.Decompose(xonly=True)
 LLH, PBest        = FOpt.ScanW(A, L)
 Factory.update( PBest )
-D.Decompose()
+D.Decompose(xonly=True)
 LBest, PBest      = FOpt.FitW()
 NBest             = D.N
 
