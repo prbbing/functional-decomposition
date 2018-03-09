@@ -116,7 +116,7 @@ class SignalScan(ParametricObject):
     def __iter__(self):
         sl       = self.DataSet.GetActive()
         Sig      = np.array([ self.DataSet[s].Sig for s in sl ])
-        self.Bct = self.Factory.TDotF.T.copy()
+        self.Bct = self.Factory.TDotF.T[:,:,self.Factory["NCheck"]]
         self.Sct = self.Factory.CovTensor( *Sig ).T.copy()
 
         return self
@@ -175,6 +175,7 @@ class Optimizer(ParametricObject):
 
                 Raw = D.TestS.LogP(D.Full)
                 Pen = self.Prior.KL(D.TestB, ScaleStatPre=j)
+
                 pdot()
             except (np.linalg.linalg.LinAlgError, ValueError):
                 pdot(pchar="x")
@@ -294,7 +295,7 @@ class DataSet(ParametricObject):
         n, N = self.N, D.size
         Act  = self.GetActive() if reduced else self.Signals
 
-        LCov = self.Factory.TDotF[n:N,n:N,:n].dot( D[:n] )
+        LCov = self.Factory.TDotF[n:N,n:N,:2*n].dot( D[:2*n] )
         Ch   = cho_factor(LCov)
 
         if verbose: pini("Solving")
@@ -478,26 +479,25 @@ class TruncatedSeries(object):
         ChSelf      = cho_factor(self.Cov[j:k,j:k] / ScaleStatPre)
         h           = cho_solve(ChSelf, delta,           )
         r           = cho_solve(ChSelf, othr.Cov[j:k,j:k])
-        LD          = slogdet(r)[1]
 
         return (np.trace(r) + delta.dot(h) - slogdet(r)[1] - k + j) / 2
 
     # Chi2(othr||self) --> Prob of moments in `othr' with respect to `self'.
-    def Chi2(self, othr):
+    def Chi2(self, othr, ScaleStatPre=1.0):
         j, k        = self._ci(othr)
         delta       = self.MomAct[j:k] - othr.MomAct[j:k]
 
-        Ch          = cho_factor(self.Cov[j:k,j:k])
+        Ch          = cho_factor(self.Cov[j:k,j:k] / ScaleStatPre)
         h           = cho_solve(Ch, delta)
 
         return delta.dot(h) / 2
 
     # Prob. of othr with respect to self.
-    def LogP(self, othr):
+    def LogP(self, othr, ScaleStatPre=1.0):
         j, k        = self._ci(othr)
         delta       = self.MomAct[j:k] - othr.MomAct[j:k]
 
-        Ch          = cho_factor(self.Cov[j:k,j:k])
+        Ch          = cho_factor(self.Cov[j:k,j:k] / ScaleStatPre)
         h           = cho_solve(Ch, delta)
         l           = 2*np.log(np.diag(Ch[0])).sum()
 
@@ -518,7 +518,7 @@ class TruncatedSeries(object):
 
         # Build covariance matrix
         N           = self.Cov.shape[0]
-        self.Mx     = self.Factory.MomMx( self.MomAct, self.Nmin, self.Nmax, out=self.Mx)
+        self.Mx     = self.Factory.MomMx( self.MomAct, self.Nmin, 2*self.Nmax, out=self.Mx)
         self.Cov    = (self.Mx - np.outer(self.MomAct[:N], self.MomAct[:N])) / self.StatPre
 
     # Set the moments from an iterator
