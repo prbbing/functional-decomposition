@@ -111,11 +111,7 @@ class DecompFactory(ParametricObject):
     # Decompose the dataset 'x' with weights 'w' and return the moments.
     def Decompose(self, x, w, cksize=2**20, **kw):
         Nb   = kw.pop("Nbasis", 0)
-
-        if Nb <= 0:
-            Nb = self["Nbasis"]
-
-        Fn   = self.Fn(x[:cksize+1], w[:cksize+1], **kw)
+        Fn   = self.Fn(x[:cksize+1], w[:cksize+1], Nbasis=Nb if Nb > 0 else self["Nbasis"], **kw)
         Mom  = np.zeros( (Fn["Nbasis"],) )
 
         for i in range(0, x.size, cksize): 
