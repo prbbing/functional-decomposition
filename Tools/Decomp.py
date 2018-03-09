@@ -400,21 +400,23 @@ class DataSet(ParametricObject):
 ## A parametric signal model.
 ###
 class ParametricSignal(object):
-    def Decompose(self, cksize=2**20, **kwargs):
-        Mom                 = self.CachedDecompose(cksize, **kwargs)
+    def Decompose(self, cksize=2**20, Nbasis=0, **kwargs):
+        Mom                 = self.CachedDecompose(cksize, Nbasis=Nbasis, **kwargs)
         self.Mom[:len(Mom)] = Mom
         self.Mom[len(Mom):] = 0
         self.MomX[:]        = 0
 
     # Decompose the signal sample data.
     @Cache.Element("{self.Factory.CacheDir}", "Decompositions", "{self.Factory}", "{self.name}.npy")
-    def CachedDecompose(self, cksize=2**20):
+    def CachedDecompose(self, cksize=2**20, **kwargs):
+        Nb           = kwargs.pop("Nbasis", 0)
         Mom          = np.zeros((self.Factory["Nbasis"],))
         sumW         = 0.0
         sumW2        = 0.0
         Neff         = 0
         cksize       = min(cksize, self.Npt)
-        Fn           = self.Factory.Fn(np.zeros((cksize,)), w=np.zeros((cksize,)))
+        Fn           = self.Factory.Fn(np.zeros((cksize,)), w=np.zeros((cksize,)),
+                                       Nbasis=Nb if Nb > 0 else self.Factory["Nbasis"])
 
         while Neff < self.Npt:
             Fn['x']    = np.random.normal(loc=self.mu, scale=self.sigma, size=cksize)
