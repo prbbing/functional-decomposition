@@ -8,7 +8,7 @@ from   scipy.optimize      import minimize
 from   scipy.linalg        import solve
 from   numpy.linalg        import slogdet, multi_dot
 from   scipy.linalg        import cho_factor, cho_solve
-from   math                import pi, sqrt
+from   math                import pi, e, sqrt
 from   scipy.special       import erfinv
 
 import time
@@ -116,7 +116,7 @@ class SignalScan(ParametricObject):
     def __iter__(self):
         sl       = self.DataSet.GetActive()
         Sig      = np.array([ self.DataSet[s].Sig for s in sl ])
-        self.Bct = self.Factory.TDotF.T[:,:,self.Factory["NCheck"]]
+        self.Bct = self.Factory.TDotF.T[:self.Factory["Ncheck"]]
         self.Sct = self.Factory.CovTensor( *Sig ).T.copy()
 
         return self
@@ -171,17 +171,16 @@ class Optimizer(ParametricObject):
 
         for j in range(2, self.Factory["Ncheck"]):
             try:
-                self.DataSet.SetN(j)
+                D.SetN(j)
 
-                Raw = D.TestS.LogP(D.Full)
-                Pen = self.Prior.KL(D.TestB, ScaleStatPre=j)
+                Raw  = D.TestS.Chi2(D.Full)
+                Pen  = j * np.log(j / 2*pi*e) / 2  # prior strength = j
 
                 pdot()
             except (np.linalg.linalg.LinAlgError, ValueError):
                 pdot(pchar="x")
                 continue
             L[j] = Raw + Pen
-
         j = np.nanargmin(L)
 
         return j, L[j]
@@ -214,8 +213,8 @@ class Optimizer(ParametricObject):
     def ObjFunc(self, arg):
         prst()
         pstr(str_nl % "Nint" + "%.2f" % self.DataSet.Nint)
-        pstr(str(self))
         pstr(str_nl % "Signals" + " ".join(self.DataSet.GetActive()))
+        pstr(str(self))
 
         pini("MOMENT SCAN")
 
@@ -231,7 +230,6 @@ class Optimizer(ParametricObject):
         return L
 
     def __init__(self, Factory, DataSet, **kwargs):
-        self.PriStr    = kwargs.get("PriorStrength", 1.0)
         self.DataSet   = DataSet
         self.Factory   = Factory
         self.Nfev      = 0
@@ -241,7 +239,7 @@ class Optimizer(ParametricObject):
         self._fitparam = Factory._fitparam
         ParametricObject.__init__(self, **Factory.ParamVal)
 
-        self.Prior     = TruncatedSeries(self.Factory, np.zeros((Factory["Nbasis"],)), self.PriStr, Nmax=2 )
+        self.Prior     = TruncatedSeries(self.Factory, np.zeros((Factory["Nbasis"],)), 1.0, Nmax=2 )
         self.PriorGen  = Factory.Pri()
         self.Xfrm      = self.Factory.Xfrm()
 
@@ -279,7 +277,6 @@ class DataSet(ParametricObject):
 
         self.Mom[:Nb] = self.Factory.CachedDecompose(self.x, self.w, str(self.uid), cksize=cksize, Nbasis=Nb)
 
-
         self.Full     = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
         self.TestS    = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
         self.TestB    = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
@@ -295,11 +292,11 @@ class DataSet(ParametricObject):
     #   as it is much faster than the alternative solvers.
     @pstage("Preparing Signal Estimators")
     def PrepSignalEstimators(self, reduced=True, verbose=False):
-        D    = getattr(self, self.attr)
+        D    = getattr(self, self.attr).copy()
         n, N = self.N, D.size
         Act  = self.GetActive() if reduced else self.Signals
 
-        LCov = self.Factory.TDotF[n:N,n:N,:2*n].dot( D[:2*n] )
+        LCov = self.Factory.TDotF[n:N,n:N,:n].dot( D[:n] )
         Ch   = cho_factor(LCov)
 
         if verbose: pini("Solving")
@@ -326,6 +323,7 @@ class DataSet(ParametricObject):
 
     # Extract the active signals
     def ExtractSignals(self, Data, *extrasignals):
+        N            = self.N
         Sig, P       = self.NormSignalEstimators(self, *extrasignals)
         R            = P.dot(Data[self.N:])
 
@@ -333,8 +331,8 @@ class DataSet(ParametricObject):
         self.P       = P
 
         for i, name in enumerate( self.GetActive(*extrasignals) ): 
-            self[name].Moment  = R[i]
-            self[name].Yield   = R[i] * self.Nint
+            self[name].Moment = R[i]
+            self[name].Yield  = R[i] * self.Nint
 
     # Return covariance matrix (in events)
     def Covariance(self):
@@ -348,7 +346,6 @@ class DataSet(ParametricObject):
         else:
             Mf        = self.Factory.CovMatrix( getattr(self, self.attr) )
             self.Cov  = self.Nint * multi_dot (( self.P, Mf[N:,N:], self.P.T ))
-
             self.Unc  = np.sqrt(np.diag(self.Cov))
             self.Corr = self.Cov / np.outer(self.Unc, self.Unc)
 
@@ -478,34 +475,42 @@ class TruncatedSeries(object):
         return ( max(self.Nmin, othr.Nmin),
                  max(self.Nmax, othr.Nmax))
 
+    # Get the entropy of this TruncatedSeries.
+    def Entropy(self, **kwargs):
+       j     = kwargs.get('j', self.Nmin)
+       k     = kwargs.get('k', self.Nmax)
+       Cov   = self.Cov[j:k,j:k]
+
+       return slogdet(2*pi*e*Cov)[1] / 2
+
     # Dkl(othr||self) --> prior.KL(posterior). If specified, scale the
-    #  statistical precision of 'self' by ScaleStatPre
-    def KL(self, othr, ScaleStatPre=1.0):
+    #  statistical precision of 'self' by Scalee
+    def KL(self, othr):
         j, k        = self._ci(othr)
         delta       = self.MomAct[j:k] - othr.MomAct[j:k]
 
-        ChSelf      = cho_factor(self.Cov[j:k,j:k] / ScaleStatPre)
-        h           = cho_solve(ChSelf, delta,           )
+        ChSelf      = cho_factor(self.Cov[j:k,j:k])
+        h           = cho_solve(ChSelf, delta)
         r           = cho_solve(ChSelf, othr.Cov[j:k,j:k])
 
         return (np.trace(r) + delta.dot(h) - slogdet(r)[1] - k + j) / 2
 
-    # Chi2(othr||self) --> Prob of moments in `othr' with respect to `self'.
-    def Chi2(self, othr, ScaleStatPre=1.0):
+    #Log-likelihood of othr with respect to self.
+    def Chi2(self, othr):
         j, k        = self._ci(othr)
         delta       = self.MomAct[j:k] - othr.MomAct[j:k]
 
-        Ch          = cho_factor(self.Cov[j:k,j:k] / ScaleStatPre)
+        Ch          = cho_factor(self.Cov[j:k,j:k])
         h           = cho_solve(Ch, delta)
 
         return delta.dot(h) / 2
 
-    # Prob. of othr with respect to self.
-    def LogP(self, othr, ScaleStatPre=1.0):
+    # Negative log-likelihood of othr with respect to self.
+    def LogP(self, othr):
         j, k        = self._ci(othr)
         delta       = self.MomAct[j:k] - othr.MomAct[j:k]
 
-        Ch          = cho_factor(self.Cov[j:k,j:k] / ScaleStatPre)
+        Ch          = cho_factor(self.Cov[j:k,j:k])
         h           = cho_solve(Ch, delta)
         l           = 2*np.log(np.diag(Ch[0])).sum()
 
@@ -526,7 +531,7 @@ class TruncatedSeries(object):
 
         # Build covariance matrix
         N           = self.Cov.shape[0]
-        self.Mx     = self.Factory.MomMx( self.MomAct, self.Nmin, 2*self.Nmax, out=self.Mx)
+        self.Mx     = self.Factory.MomMx( self.Mom, self.Nmin, self.Nmax, out=self.Mx)
         self.Cov    = (self.Mx - np.outer(self.MomAct[:N], self.MomAct[:N])) / self.StatPre
 
     # Set the moments from an iterator
