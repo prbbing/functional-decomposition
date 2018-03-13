@@ -61,7 +61,7 @@ class ParametricObject(object):
 
 class DecompFactory(ParametricObject):
     # These should be overridded by subclasses.
-    _param    = ("Nbasis", "Nxfrm", "Ntrunc", "Ncheck")  # List of all parameters for constituents.
+    _param    = ("Nbasis", "Nxfrm", "Ncheck")  # List of all parameters for constituents.
 
     # Methods to create the function, matrix and weight objects with correct parameters.
     # Should be over-ridden by subclasses.
@@ -77,7 +77,7 @@ class DecompFactory(ParametricObject):
     # Return the matrix-form of Mom
     def MomMx  (self, Mom, i, j, **kwargs):
         out = kwargs.get("out", None)
-        N   = kwargs.get("N", self["Ntrunc"])
+        N   = kwargs.get("N", self["Nxfrm"])
         j   = min(j, self.TDot.shape[-1])
         return np.dot( self.TDot[:N,:N,i:j], Mom[i:j], out=out)
 
@@ -134,7 +134,7 @@ class DecompFactory(ParametricObject):
         ParametricObject.__init__(self, **kwargs)
         ne.set_num_threads(self.Nthread)
 
-        self.TDot       = self.OpMatrix( self["Ntrunc"] )
+        self.TDot       = self.OpMatrix( self["Nxfrm"] )
         self.TDotF      = self.OpMatrix( self["Nbasis"], M=self["Ncheck"] )
 
         self['Factory'] = self

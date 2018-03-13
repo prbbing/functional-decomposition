@@ -203,7 +203,7 @@ for scan_name, sig_names in Names.items():
 ######
 # Output fit results
 ######
-Ntrunc = Factory["Ntrunc"]
+Nxfrm = Factory["Nxfrm"]
 print
 print
 print "=====> CUTFLOW <====="
@@ -226,7 +226,7 @@ print D.Corr
 print
 print
 print "=====> FRACTIONAL DIFFERENCE BETWEEN TRANSFORMED AND DIRECT MOMENTS <====="
-print ((MomX[1:Ntrunc] - MomT[1:Ntrunc])/MomT[1:Ntrunc])
+print ((MomX[1:Nxfrm] - MomT[1:Nxfrm])/MomT[1:Nxfrm])
 
 ######
 # Plotting

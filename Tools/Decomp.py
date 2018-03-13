@@ -269,7 +269,7 @@ class DataSet(ParametricObject):
     @pstage("Decomposing")
     def Decompose(self, reduced=True, xonly=False, cksize=2**20):
         pini("Data Moments")
-        N             = self.Factory["Ntrunc"]
+        N             = self.Factory["Nxfrm"]
         Nb            = self.Factory["Nxfrm"] if xonly else self.Factory["Nbasis"]
 
         self.Mom      = np.zeros((self.Factory["Nbasis"],))
@@ -548,10 +548,10 @@ class TruncatedSeries(object):
         self.Nmax    = kwargs.get("Nmax", Factory["Nbasis"])
 
         Nbasis       = Factory["Nbasis"]
-        Ntrunc       = Factory["Ntrunc"]
+        Nxfrm        = Factory["Nxfrm"]
 
-        self.Mx      = np.zeros( (Ntrunc, Ntrunc) )
-        self.Cov     = np.zeros( (Ntrunc, Ntrunc) )   # Covariance (weighted)
+        self.Mx      = np.zeros( (Nxfrm, Nxfrm) )
+        self.Cov     = np.zeros( (Nxfrm, Nxfrm) )     # Covariance (weighted)
         self.MomAct  = np.zeros( (Nbasis,) )          # Weighted, truncated moments
         self.MomU    = Moments.copy()
         self.Mom     = Moments.copy()
