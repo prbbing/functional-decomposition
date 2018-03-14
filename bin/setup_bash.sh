@@ -33,9 +33,9 @@ then
     printf "Python package dependency check:\n"
     for PACKAGE in numpy scipy numexpr matplotlib
     do
-        checkPyModule $PACKAGE "import ${PACKAGE}; print ${PACKAGE}.__version__"
+        checkPyModule $PACKAGE "import ${PACKAGE}; print ${PACKAGE}.__version__; exit()"
     done
-    checkPyModule "ROOT" "import ROOT; print ROOT.gROOT.GetVersion()"
+    checkPyModule "ROOT" "import ROOT; print ROOT.gROOT.GetVersion(); exit()"
 
     printf "\n"
     printf "ROOT is __optional__, and is required only to import Tree objects from\n"
