@@ -204,6 +204,8 @@ class Optimizer(ParametricObject):
     # Scan through a grid of hyperparameters
     @pstage("Scanning Hyperparameters")
     def ScanW(self, *par):
+        self.Nfex = par[0].size
+
         LLH  = np.vectorize(lambda *arg: self.ObjFunc(arg) )(*par)
         best = np.where(LLH == LLH.min())
         x    = [ v[best] for v in par ]
@@ -225,7 +227,7 @@ class Optimizer(ParametricObject):
 
         pstr(str_nl % "Nmom" + "%2d"  % j)
         pstr(str_nl % "LLH"  + "%.2f" % L)
-        pstr(str_nl % "Nfev" +  "%d"  % self.Nfev)
+        pstr(str_nl % "Nfev" +  "%d / %d"  % (self.Nfev, self.Nfex))
 
         return L
 
@@ -233,6 +235,7 @@ class Optimizer(ParametricObject):
         self.DataSet   = DataSet
         self.Factory   = Factory
         self.Nfev      = 0
+        self.Nfex      = 0
 
         # Copy parameters from the Factory object.
         self._param    = Factory._fitparam
