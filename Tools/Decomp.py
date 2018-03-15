@@ -323,7 +323,7 @@ class DataSet(ParametricObject):
         Res  = np.array([ self[s].Res for s in sl ])                    # sig residuals
         Est  = np.array([ self[s].Est for s in sl ])                    # sig raw estimators
 
-        P    = solve ( Res.dot(Est.T), Est, assume_a='pos')             # normalized estimators
+        P    = solve ( Est.dot(Res.T), Est)                             # normalized estimators
 
         return Sig, P
 
