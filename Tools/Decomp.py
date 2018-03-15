@@ -300,9 +300,8 @@ class DataSet(ParametricObject):
         n, N  = self.N, D.size
         Act   = self.GetActive() if reduced else self.Signals
 
-        D[n:] = 0
-        LCov  = self.Factory.TDotF[:N,:N,:n].dot( D[:n] ) - np.outer(D, D)
-        LCov += np.eye( N ) * n / self.Nint
+        LCov  = self.Factory.TDotF[n:N,n:N,:n].dot( D[:n] )
+        LCov += np.eye ( N-n ) * n / self.Nint
         Ch    = cho_factor( LCov )
 
         if verbose: pini("Solving")
@@ -310,7 +309,7 @@ class DataSet(ParametricObject):
             sig     = self[name]
             sig.Sig = getattr(sig, self.attr)                           # set the moments to use.
             sig.Res = sig.Sig[n:]                                       # sig res
-            sig.Est = cho_solve(Ch, sig.Sig.T)[n:]
+            sig.Est = cho_solve(Ch, sig.Res.T)
 
             if verbose: pdot()
         if verbose: pend()
