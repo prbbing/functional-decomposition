@@ -197,9 +197,8 @@ class Optimizer(ParametricObject):
         self.UpdateXfrm()
         
         N, L = self.ScanN()
-        self.DataSet.SetN( N )
 
-        return L, par
+        return N, L, par
 
     # Scan through a grid of hyperparameters
     @pstage("Scanning Hyperparameters")
