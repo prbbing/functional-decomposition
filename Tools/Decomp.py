@@ -70,14 +70,15 @@ class SignalScan(ParametricObject):
 
         proj   = x - s * self.dvec          # NP signal projected off
         base   = proj if s < 0 else x       # Base point for limit
-        ini    = base + 2*self.Sb
 
         ptgt   = self._gvecprob(base) - sqrt(2) * erfinv(p-1)
+        gpos   = lambda t: np.dot(t, self.dvec)
         gcon   = lambda t: ptgt - self._gvecprob(t)
         gobj   = lambda t: -self.DataSet.Nint*np.dot(t, self.dvec)
 
-        res    = minimize(gobj, ini, constraints={'type': 'eq', 'fun': gcon },
-                                     options={'maxiter': 200, 'eps': 1e-12})
+        res    = minimize(gobj, base, constraints=[{'type':   'eq', 'fun': gcon },
+                                                   {'type': 'ineq', 'fun': gpos }],
+                                      options={'maxiter': 200, 'eps': 1e-12})
         if not res.success:
             print res
         return -res.fun / self.Lumi if self.Lumi > 0 else - res.fun
