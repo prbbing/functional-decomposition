@@ -177,12 +177,13 @@ class Optimizer(ParametricObject):
     def ScanN(self, reduced=True, **kwargs):
         L = np.full((self.Factory["Ncheck"],), np.inf)
         D = self.DataSet
+        a = kwargs.get("attr", "MomX")
 
         self.UpdateXfrm(reduced=reduced)
 
         for j in range(2, self.Factory["Ncheck"]):
             try:
-                D.SetN(j)
+                D.SetN(j, attr=a)
 
                 Raw  = D.TestS.Chi2(D.Full)
                 Pen  = j * np.log(j / 2*pi*e) / 2  # prior strength = j

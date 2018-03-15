@@ -152,14 +152,14 @@ LLH, PBest        = FOpt.ScanW(A, L)
 Factory.update( PBest )
 D.Decompose(xonly=True)
 NBest, LBest, PBest = FOpt.FitW()
-#NBest             = D.N
 
 ### Re-decompose, extract signals, and validate that xfrm gave good moment estimates.
 MomX = D.Full.Mom.copy()
 Factory.update( PBest)
 D.Decompose(reduced=False)
 FOpt.UpdateXfrm(**PBest)
-NBest, LBest = FOpt.ScanN()
+NBest, LBest = FOpt.ScanN(attr="Mom")
+print NBest
 D.SetN(N=NBest, attr="Mom")    # attr="Mom": use the full expansions from here on out
 MomT = D.Full.Mom.copy()
 
