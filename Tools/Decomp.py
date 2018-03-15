@@ -17,19 +17,27 @@ import time
 ## Conduct a signal scan on a DataSet and store the results.
 ###
 class SignalScan(ParametricObject):
-    def _setShortCov(self, SigMoms, P):
-        n        = self.DataSet.N
-        m        = P.shape[0]
-        Sct      = self.Factory.CovTensor( SigMoms[-1] )
-
-        self.Bcs = np.zeros((m, m, n))
-        self.Scs = np.zeros((m, m, m))
+    @Cache.Element("{self.Factory.CacheDir}", "Bcs", "{self.Factory}", "{self.SigNames}.npy")
+    def _getBcs(self, SigMoms, P):
+        n            = self.DataSet.N
+        m            = P.shape[0]
+        Bcs          = np.zeros((m, m, n))
 
         for i in range(n):
-            self.Bcs[:,:,i] = multi_dot( ( P, self.Bct[i,n:,n:], P.T ) )
+            Bcs[:,:,i] = multi_dot( ( P, self.Bct[i,n:,n:], P.T ) )
+        return Bcs
+
+    @Cache.Element("{self.Factory.CacheDir}", "Scs", "{self.Factory}", "{self.SigNames}.npy")
+    def _getScs(self, SigMoms, P):
+        n            = self.DataSet.N
+        m            = P.shape[0]
+        Sct          = self.Factory.CovTensor( SigMoms[-1] )
+        Scs          = np.zeros((m, m, m))
+        Scs[:,:,m-1] = multi_dot( ( P, Sct[n:,n:,0], P.T ) )
+
         for i in range(m-1):
-            self.Scs[:,:,i] = multi_dot( ( P, self.Sct[i,n:,n:], P.T ) )
-        self.Scs[:,:,m-1]   = multi_dot( ( P, Sct[n:,n:,0], P.T ) )
+            Scs[:,:,i] = multi_dot( ( P, self.Sct[i,n:,n:], P.T ) )
+        return Scs
 
     # covariance helper function
     def _cov(self, t):
@@ -83,12 +91,14 @@ class SignalScan(ParametricObject):
 
         Data           = self.DataSet
         SigName        = self.Names[self.idx]
-        signals        = [ Data[name] for name in Data.GetActive(SigName) ]
+        self.SigNames  = Data.GetActive(SigName)
+        signals        = [ Data[name] for name in self.SigNames ]
 
         DataMom        = getattr(Data, Data.attr)
         SigMoms, P     = Data.NormSignalEstimators(SigName)
 
-        self._setShortCov(SigMoms, P)
+        self.Scs       = self._getScs(SigMoms, P)
+        self.Bcs       = self._getBcs(SigMoms, P)
 
         self.dvec      = np.array( [ x.name == SigName for x in signals ] )
         Rb             = np.array( [ x.Moment for x in signals ] )
