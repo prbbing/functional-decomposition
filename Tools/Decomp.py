@@ -300,7 +300,6 @@ class DataSet(ParametricObject):
         Act   = self.GetActive() if reduced else self.Signals
 
         LCov  = self.Factory.TDotF[n:N,n:N,:n].dot( D[:n] )
-        LCov += np.eye ( N-n ) * n / self.Nint
         Ch    = cho_factor( LCov )
 
         if verbose: pini("Solving")

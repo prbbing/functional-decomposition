@@ -159,6 +159,7 @@ MomX = D.Full.Mom.copy()
 Factory.update( PBest)
 D.Decompose(reduced=False)
 FOpt.UpdateXfrm(**PBest)
+NBest, LBest = FOpt.ScanN()
 D.SetN(N=NBest, attr="Mom")    # attr="Mom": use the full expansions from here on out
 MomT = D.Full.Mom.copy()
 
