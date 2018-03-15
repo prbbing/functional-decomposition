@@ -17,7 +17,7 @@ import time
 ## Conduct a signal scan on a DataSet and store the results.
 ###
 class SignalScan(ParametricObject):
-    @Cache.Element("{self.Factory.CacheDir}", "Bcs", "{self.Factory}", "{self.SigNames}.npy")
+    @Cache.Element("{self.Factory.CacheDir}", "Bcs", "{self.Factory}", "{self.DataSet}", "{self.SigName}.npy")
     def _getBcs(self, SigMoms, P):
         n            = self.DataSet.N
         m            = P.shape[0]
@@ -27,7 +27,7 @@ class SignalScan(ParametricObject):
             Bcs[:,:,i] = multi_dot( ( P, self.Bct[i,n:,n:], P.T ) )
         return Bcs
 
-    @Cache.Element("{self.Factory.CacheDir}", "Scs", "{self.Factory}", "{self.SigNames}.npy")
+    @Cache.Element("{self.Factory.CacheDir}", "Scs", "{self.Factory}", "{self.DataSet}", "{self.SigName}.npy")
     def _getScs(self, SigMoms, P):
         n            = self.DataSet.N
         m            = P.shape[0]
@@ -91,17 +91,17 @@ class SignalScan(ParametricObject):
             raise StopIteration
 
         Data           = self.DataSet
-        SigName        = self.Names[self.idx]
-        self.SigNames  = Data.GetActive(SigName)
-        signals        = [ Data[name] for name in self.SigNames ]
+        self.SigName   = self.Names[self.idx]
+        SigNames       = Data.GetActive(self.SigName)
+        signals        = [ Data[name] for name in SigNames ]
 
         DataMom        = getattr(Data, Data.attr)
-        SigMoms, P     = Data.NormSignalEstimators(SigName)
+        SigMoms, P     = Data.NormSignalEstimators(self.SigName)
 
         self.Scs       = self._getScs(SigMoms, P)
         self.Bcs       = self._getBcs(SigMoms, P)
 
-        self.dvec      = np.array( [ x.name == SigName for x in signals ] )
+        self.dvec      = np.array( [ x.name == self.SigName for x in signals ] )
         Rb             = np.array( [ x.Moment for x in signals ] )
         Rs             = P.dot(DataMom[Data.N:])
 
@@ -113,13 +113,13 @@ class SignalScan(ParametricObject):
         S              = multi_dot((self.dvec, self._cov(Rb), self.dvec))
         self.Sb        = sqrt(S / Data.Nint)
 
-        self.Mass  [i] = Data[SigName].Mass
+        self.Mass  [i] = Data[self.SigName].Mass
         self.Yield [i] = Rs.dot(self.dvec) * Data.Nint
         self.Unc   [i] = sqrt(S * Data.Nint)
         self.ObsLim[i] =   self.UL( Rs )
         self.ExpLim[i] = [ self.UL( Rb + v*self.Sb*self.dvec) for v in range(-2, 3) ]
 
-        return SigName, self.Yield[i], self.Unc[i], self.ObsLim[i], self.ExpLim[i]
+        return self.SigName, self.Yield[i], self.Unc[i], self.ObsLim[i], self.ExpLim[i]
 
     # Initialize covariances for shared signals.  Transposes copies
     #   are stored in memory, because this optimizes memory access
