@@ -223,11 +223,12 @@ class Optimizer(ParametricObject):
         self.update( dict( zip(self.Factory._fitparam, arg) ) )
         self.Xfrm.update(self.Factory.ParamVal)
         j, L       = self.ScanN()
-        self.Nfev += 1
 
         pstr(str_nl % "Nmom" + "%2d"  % j)
         pstr(str_nl % "LLH"  + "%.2f" % L)
         pstr(str_nl % "Nfev" +  "%d / %d"  % (self.Nfev, self.Nfex))
+
+        self.Nfev += 1
 
         return L
 
