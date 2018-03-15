@@ -296,19 +296,21 @@ class DataSet(ParametricObject):
     #   as it is much faster than the alternative solvers.
     @pstage("Preparing Signal Estimators")
     def PrepSignalEstimators(self, reduced=True, verbose=False):
-        D    = getattr(self, self.attr).copy()
-        n, N = self.N, D.size
-        Act  = self.GetActive() if reduced else self.Signals
+        D     = getattr(self, self.attr).copy()
+        n, N  = self.N, D.size
+        Act   = self.GetActive() if reduced else self.Signals
 
-        LCov = self.Factory.TDotF[n:N,n:N,:n].dot( D[:n] )
-        Ch   = cho_factor(LCov)
+        D[n:] = 0
+        LCov  = self.Factory.TDotF[:N,:N,:n].dot( D[:n] ) - np.outer(D, D)
+        LCov += np.eye( N ) * n / self.Nint
+        Ch    = cho_factor( LCov )
 
         if verbose: pini("Solving")
         for name in Act:
             sig     = self[name]
             sig.Sig = getattr(sig, self.attr)                           # set the moments to use.
             sig.Res = sig.Sig[n:]                                       # sig res
-            sig.Est = cho_solve(Ch, sig.Res.T)
+            sig.Est = cho_solve(Ch, sig.Sig.T)[n:]
 
             if verbose: pdot()
         if verbose: pend()
