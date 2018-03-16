@@ -464,15 +464,20 @@ class Transform(ParametricObject):
 
     The @OrthogonalizeHankel decorator is provided to automate this in the
     case that U_p is a Hankel matrix (i.e. all antidiagonals are constant). To
-    make this work, the subclass must implement
+    make this work, the subclass must implement two functions
 
-        def CoeffOrth(self, n):  return the n by n matrix O
-        def CoeffDeriv(self, n): return the n by n matrix D
+        def CoeffOrth(self, n):  return the n by n matrix O[n,m] / O[n,m-1]
+        def CoeffDeriv(self, n): return the n by n matrix D[n,m] / D[m,m-1]
 
     and implement the the transformations like:
 
         @Base.Transform.OrthogonalizeHankel
         def HyperA(self, n):  return the value of U_p[n, n]
+
+    CoeffOrth and CoeffDeriv return _ratios_ of the columns in O and D, as this
+    generally has a much simplier expression than the columns directly.  This
+    in turns greatly increases evaluation speed when the underlying type is
+    Fraction.
 
     Then OrthogonalizeHankel will handle the matrix multiplications using a
     multiprocessing pool.  This is overkill if the O, D and U_p are simple
