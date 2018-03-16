@@ -233,10 +233,10 @@ class ExpDecompMxForm (Base.Basis):
 
 #### Decomposition of a simple exponential e**(-x/Lambda) 
 class ExpPrior (Base.Basis):
-   '''
-     Return the moments of a distribution consisting of only the first
-     orthonormal exponential, properly normalized.
-   '''
+    '''
+    Return the moments of a distribution consisting of only the first
+    orthonormal exponential, properly normalized.
+    '''
     _param = Base.Basis._param + ( "Alpha", "Lambda" )
 
     def Moment(self):
