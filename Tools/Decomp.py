@@ -31,7 +31,7 @@ class SignalScan(ParametricObject):
     def _getScs(self, SigMoms, P):
         n            = self.DataSet.N
         m            = P.shape[0]
-        Sct          = self.Factory.CovTensor( SigMoms[-1] )
+        Sct          = self.Factory.MxTensor( SigMoms[-1] )
         Scs          = np.zeros((m, m, m))
         Scs[:,:,m-1] = multi_dot( ( P, Sct[n:,n:,0], P.T ) )
 
@@ -128,7 +128,7 @@ class SignalScan(ParametricObject):
         sl       = self.DataSet.GetActive()
         Sig      = np.array([ self.DataSet[s].Sig for s in sl ])
         self.Bct = self.Factory.TDotF.T[:self.Factory["Ncheck"]]
-        self.Sct = self.Factory.CovTensor( *Sig ).T.copy()
+        self.Sct = self.Factory.MxTensor( *Sig ).T.copy()
 
         return self
 
