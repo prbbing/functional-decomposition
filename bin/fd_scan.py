@@ -154,14 +154,11 @@ D.Decompose(xonly=True)
 NBest, LBest, PBest = FOpt.FitW()
 
 ### Re-decompose, extract signals, and validate that xfrm gave good moment estimates.
-MomX = D.Full.Mom.copy()
 Factory.update( PBest)
 D.Decompose(reduced=False)
 FOpt.UpdateXfrm(**PBest)
 NBest, LBest = FOpt.ScanN(attr="Mom")
-print NBest
 D.SetN(N=NBest, attr="Mom")    # attr="Mom": use the full expansions from here on out
-MomT = D.Full.Mom.copy()
 
 D.Covariance()
 if len(D.Signals) > 0:
@@ -224,10 +221,6 @@ print
 print
 print "=====> CORRELATION < ====="
 print D.Corr
-print
-print
-print "=====> FRACTIONAL DIFFERENCE BETWEEN TRANSFORMED AND DIRECT MOMENTS <====="
-print ((MomX[1:Nxfrm] - MomT[1:Nxfrm])/MomT[1:Nxfrm])
 
 ######
 # Plotting
