@@ -175,9 +175,10 @@ class Optimizer(ParametricObject):
     # Scan for the optimal number of moments.
     @Cache.Element("{self.Factory.CacheDir}", "LLH", "{self.Factory}", "{self}", "{self.DataSet}.json")
     def ScanN(self, reduced=True, **kwargs):
-        L = np.full((self.Factory["Ncheck"],), np.inf)
-        D = self.DataSet
-        a = kwargs.get("attr", "MomX")
+        L  = np.full((self.Factory["Ncheck"],), np.inf)
+        D  = self.DataSet
+        a  = kwargs.get("attr", "MomX")
+        ns = len( D.GetActive() )
 
         self.UpdateXfrm(reduced=reduced)
 
@@ -186,7 +187,7 @@ class Optimizer(ParametricObject):
                 D.SetN(j, attr=a)
 
                 Raw  = D.TestS.Chi2(D.Full)
-                Pen  = j * np.log(j / 2*pi*e) / 2  # prior strength = j
+                Pen  = 0.5*(j+ns) * np.log( (j+ns) / 2*pi*e) # prior strength = j + # signals
 
                 pdot()
             except (np.linalg.linalg.LinAlgError, ValueError):
