@@ -1,3 +1,79 @@
+'''
+An implementation of an orthonormal basis: the orthogonal exponentials. The
+implementation relies on the machinery for three-term recurrence relations
+implemented in Tools.Base.
+
+The orthonormal exponentials are constructed by orthogonalizing the set of
+functions:
+
+    F(n) = exp( -n*z )
+    z    = (x-x0)/Lambda) ** Alpha
+
+(ignoring normalization constants) where
+
+    n in a positive integer indexing the functions.
+    x0 is a real number specifying the lower mass cut.
+    Alpha is a positive, dimensionless real numbers.
+    Lambda is positive real number with dimensions of energy.
+
+It turns out that this set of functions is complete with respect to real-valued
+functions who tend to zero as their argument goes to infinity.
+
+Unfortunately, it is difficult to deal with this series directly: the functions
+F(n) are nearly degenerate, and working with more than a small handful of terms
+is numerically impossible.
+
+Fortunately, they can be used to produce an orthonormal basis which does not
+have these numerical issues and is extraordinarily convenient for modeling the
+falling spectra frequently seen in high-energy physics.
+
+This orthonormal basis, the orthonormal exponentials, can be written using
+three-term recurrence relations:
+
+    E(n+1) = a*exp( -n*z )*E(n) + b*E(n) + c*E(n-1)
+
+The recurrence relations are fast and numerically stable, and can readily be
+used to evaluate n ~ 10000 and higher - the upper limit has not been explored.
+They are particularly advantageous when all functions from n=1 to n=N must be
+evaluated, as each F_n must naturally be computed along the way to F_N!
+
+Hyperparameters
+---------------
+
+x0, Alpha and Lambda are hyperparameters that specify a coordinate
+transformation that converts the dimensioned coordinate x into a nondimensional
+coordinate z.  The hyperparameters are arbitrary - every choice of Alpha and
+Lambda results in a complete basis.  Some choices are more effective than
+others, though, and so Tools.Decomp provides machinery for making some (semi-)
+automated optimizations of these.
+
+The OrthExp Module
+------------------
+
+This module implements the orthonormal exponentials and transformations between
+different choices of hyperparameters.  It relies on the base classes defined
+in Tools.Base.  The following classes are provided:
+
+    ExpDecompFn        : Evaluate the orthonormal exponentials at a list of
+                         points. Also compute the series coefficients of this
+                         dataset in the orthonormal exponentials.
+    ExpDecompMxForm    : Use the recursion relations to take a 1-dimensional
+                         moment vector and convert it into its corresponding
+                         matrix form.
+    ExpPrior           : Return the moments of the first orthonormal
+                         exponential, i.e. (0, 1, 0, 0, 0, ...) with a proper
+                         normalization.
+    ExpDecompTransform : Transform a moment vector created with one set of
+                         hyperparameters into the moment vector with a
+                         different set of hyperparameters.
+    ExpDecompFactory   : Implementation of Tools.Base.Factory to store the
+                         hyperparameters and produce instantiations of the
+                         above objects having those hyperparameters.
+
+Users should normally instantiate an ExpDecompFactory and use that to produce
+the other objects.
+
+'''
 import numpy               as np
 import numexpr             as ne
 import Tools.Base          as Base
@@ -7,13 +83,37 @@ from   numpy.core.umath    import euler_gamma
 from   fractions           import Fraction
 from   math                import log, sqrt, ceil
 
-####
-## An implementation of an orthonormal basis:
-##   the orthogonal exponentials.
-####
-
 #### Orthogonal exponentials as functions
 class ExpDecompFn (Base.Basis):
+    '''
+    The orthonormal exponentials as functions.
+    
+    This class is instantiated as
+
+        En = ExpDecompFn(x, w, **kwargs)
+
+    where x and w are one-dimensional, same-sized ndarrays containing the
+    positions and their weights, respectively.  The hyperparameters
+    (x0, Lambda, and Alpha) must be supplied as keyword arguments, as must
+    Nbasis (the maximum N to evaluate).
+
+    If ExpDecompFn is produced by an ExpDecompFactory object (this is generally
+    the correct apprach), then the hyperparameters stored in the factory object
+    will automatically be supplied.
+
+    ExpDecompFn acts as an iterator, so the values [ E1(x), E2(x), E3(x), ... ]
+    can be stepped through in order like this:
+    
+        for x in En:
+            print x.N, x.Values()
+
+    x.Values() returns an array with the same shape as x, with the values of
+    the N'th orthonormal exponential at each x.  If x is a dataset, its moments
+    can be obtained using the Moment() method:
+
+        for x in En:
+            print x.N, x.Moment()
+    '''
     _param = Base.Basis._param + ( "x0", "Lambda", "Alpha" )
 
     # User-facing functions.
@@ -49,6 +149,35 @@ class ExpDecompFn (Base.Basis):
 
 #### Class to elevate a decomposition to it's matrix form
 class ExpDecompMxForm (Base.Basis):
+    '''
+    A class to elevate a decomposition from its vector form to its matrix form.
+
+    This class is initialized with a moment vector <orig>.  It implements the
+    iterator interface, and each step of the iteration returns the  moment
+    vectors of <E_N * orig>.  That is, if <orig> is the decomposition of some
+    function F(x), then each iteration returns the decomposition of
+    F(x) * E_n(x).
+
+    The primary utility is that this allows easy construction of the matrix
+    representation of <orig>, and hence provides a convenient mechanism to
+    construct the covariance matrix between the elements of the <orig> vector.
+
+    Instantiate this as
+
+        MxForm = ExpDecompMxForm(*mom, Nbasis=N)
+
+    where N is the maximum n to evaluate.  If multiple original moment vectors
+    are supplied, then they are iterated through simultaneously, e.g.
+
+        MxForm = ExpDecompMxForm(origA, origB, origC, Nbasis=N)
+
+        for x in MxForm:
+            V = x.Values()
+
+            print "Decomposition of A*E_%d:" % x.N, V[0]
+            print "Decomposition of B*E_%d:" % x.N, V[1]
+            print "Decomposition of C*E_%d:" % x.N, V[2]
+    '''
     def Values(self):           return self['t'][ self.N % 2 ][:,1:self["Nbasis"]+1]
     def Zeros (self, shape=()): return np.zeros(shape + self['x'].shape)
 
@@ -104,6 +233,10 @@ class ExpDecompMxForm (Base.Basis):
 
 #### Decomposition of a simple exponential e**(-x/Lambda) 
 class ExpPrior (Base.Basis):
+   '''
+     Return the moments of a distribution consisting of only the first
+     orthonormal exponential, properly normalized.
+   '''
     _param = Base.Basis._param + ( "Alpha", "Lambda" )
 
     def Moment(self):
@@ -113,6 +246,27 @@ class ExpPrior (Base.Basis):
 
 #### Transformation matrix generator for orthogonal exponentials.
 class ExpDecompTransform(Base.Transform):
+    '''
+    Transformation object for the orthonormal exponentials.
+
+    ExpDecompTransform implements transformations on Alpha and Lambda for the
+    orthonormal exponentials (x0 cannot be transformed).
+
+    Mandatory argument on initialization are Alpha, Lambda, and Nxfrm. Nxfrm
+    specifies the size of the transformation matrices (i.e. the maximum number
+    of moments that can be transformed). Alpha and Lambda specify the
+    hyperparameters for the starting point of the transformation.
+
+    Initialize and use it like this:
+
+        Xfrm   = ExpDecompTransform(Alpha=AlphaIni, Lambda=LambdaIni, Nxfrm=N)
+        NewMom = Xfrm(OldMom, Alpha=AlphaNew, Lambda=LambdaNew)
+
+    The remaining methods in ExpDecompTransform exist to compute the
+    transformation matrices, and are not intended for direct use. If AlphaNew
+    is unspecified, the transformation assumes that AlphaNew = AlphaOld, and
+    likewise for Lambda.
+    '''
     _param = Base.Transform._param + ("Lambda", "Alpha")
 
     # Return a high-accuracy rational approximation of log(n) for integer n
@@ -156,6 +310,37 @@ class ExpDecompTransform(Base.Transform):
 
 #### A decomposer factory using the orthonormal exponentials
 class ExpDecompFactory ( Base.DecompFactory ):
+    '''
+    A factory object for the orthonormal exponentials.
+
+    The ExpDecompFactory is the preferred way to store hyperparameter values
+    and to create the ExpDecompFn, ExpDecompMxForm, and ExpDecompTransform
+    objects.
+    
+    A simple example, assuming that 'x' and 'w' are a list of points and the
+    corresponding weights, respectively:
+
+        Factory = ExpDecompFactory(Alpha=AlphaOld, Lambda=LambdaOld, x0=x0
+                                   Nbasis=Nbasis, Nxfrm=Nxfrm, Ncheck=Ncheck)
+
+        Mom       = [ r.Moment() for r in Factory.Fn(x, w) ]
+        MomCov    = Factory.CovMatrix( Mom )
+
+        Xfrm      = Factory.Xfrm()
+        MomNew    = Xfrm(Mom, Alpha=AlphaNew, Lambda=LambdaNew)
+        MomNewCov = Factory.CovMatrix(MomNew)
+
+    This
+
+        1. Creates a factory object with hyperparameters (AlphaOld, LambdaOld).
+        2. Computes the moments (i.e. the decomposition) of the dataset x.
+        3. Computes the covariance of those moments.
+        4. Transforms the moments to the hyperparameters (AlphaNew, LambdaNew).
+        5. Computes the covariance matrix in the transformed basis.
+
+    The ExpDecompFactory is the preferred top-level interface for using all of
+    the implementation of the orthonormal exponentials.
+    '''
     _param    = tuple(set( Base.DecompFactory._param
                           + ExpDecompFn._param
                           + ExpDecompMxForm._param
