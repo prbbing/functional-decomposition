@@ -178,7 +178,7 @@ class Optimizer(ParametricObject):
         L  = np.full((self.Factory["Ncheck"],), np.inf)
         D  = self.DataSet
         a  = kwargs.get("attr", "MomX")
-        ns = len( D.GetActive() )
+        ns = len( D.GetActive() ) - 1 + len( self.Factory._fitparam )
 
         self.UpdateXfrm(reduced=reduced)
 
@@ -187,7 +187,7 @@ class Optimizer(ParametricObject):
                 D.SetN(j, attr=a)
 
                 Raw  = D.TestS.Chi2(D.Full)
-                Pen  = 0.5*(j+ns) * np.log( (j+ns) / 2*pi*e) # prior strength = j + # signals
+                Pen  = 0.5*(j+ns) * np.log( float(j+ns) / 2*pi*e) # prior strength = j + # signals
 
                 pdot()
             except (np.linalg.linalg.LinAlgError, ValueError):
