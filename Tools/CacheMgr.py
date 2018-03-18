@@ -1,3 +1,17 @@
+'''
+CacheMgr is a collection of functions to handle the automatic result caching
+for FD.  It handles primitive Python types as well as Numpy ndarrays, and has
+facilities for caching both in the numpy ".npy" format as well as JSON.
+
+There are three user-facing functions:
+  CacheMgr.Element       : Decorator; cache the result of the decorated function
+  CacheMgr.AtomicElement : Decorator; atomically cache the result of the
+                           decorated function
+  CacheMgr.SymArray      : Decorator; cache the result of the deorated function
+                           assuming that the result is a symmetric ndarray and
+                           save only unique elements to disk.
+'''
+
 import itertools, json, os
 import numpy           as np
 
@@ -49,7 +63,22 @@ def _loadSparseSym(file):
     return Mx
 
 # Cache / calculate a symmetric, multi-dimensional numpy array.
-def SymArray(*pathTpl, **warg):
+def SymArray(*pathTpl):
+    '''
+    Cache a symmetric, multi-dimensional ndarray.
+    
+    This decorator should wrap a function that returns a symmetric,
+    n-dimensional ndarray.  The decorator's positional arguments should specify
+    the path for the cache file (one path component per argument).  The ndarray
+    is saved as a sparse JSON file, that is, if the wrapped function returns a
+    3-axis ndarray, then only a single element is written to disk for the six
+    components
+        (1,2,3), (2,1,3), (1,3,2), (2,3,1), (3,2,1), (3,1,2)
+    which, by symmetric, are presumed to be equal.
+
+    When the cache is loaded, the saved file is expanded to a full non-sparse
+    ndarray.
+    '''
     def owrap(func):
         def wrap(self, *args, **kwargs):
             FullPath, Name, Ext = _mkPath(pathTpl, *args, self=self, **kwargs)
@@ -97,6 +126,17 @@ def _fload(Ext, FullPath):
         raise ValueError
 
 def Element(*pathTpl):
+    '''
+    Cache a function result.
+
+    The wrapped function can return an ndarray or any JSON-serializable Python
+    structure.  The decorator's positional arguments should specify the path
+    for the cache file (one path component per argument).  The result is saved
+    as a JSON or npy file depending on the extension of the last path element.
+
+    If the file already exists but cannot be deserialized, Element re-computes
+    the wrapped function.
+    '''
     def owrap(func):
         def wrap(self, *args, **kwargs):
             FullPath, Name, Ext = _mkPath(pathTpl, *args, self=self, **kwargs)
@@ -116,6 +156,19 @@ def Element(*pathTpl):
     return owrap
 
 def AtomicElement(*pathTpl):
+    '''
+    Cache a function result.
+
+    The wrapped function can return an ndarray or any JSON-serializable Python
+    structure.  The decorator's positional arguments should specify the path
+    for the cache file (one path component per argument).  The result is saved
+    as a JSON or npy file depending on the extension of the last path element.
+
+    AtomicElement uses an atomic file creation to check if the result cache is
+    either existing or in progress.  If the file exists and can be loaded, it
+    is loaded.  If it exists and cannot be loaded, AtomicElement returns a
+    value of zero.
+    '''
     def owrap(func):
         def wrap(self, *args, **kwargs):
             FullPath, Name, Ext = _mkPath(pathTpl, *args, self=self, **kwargs)
