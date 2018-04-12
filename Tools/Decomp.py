@@ -186,14 +186,15 @@ class Optimizer(ParametricObject):
             try:
                 D.SetN(j, attr=a)
 
-                Raw  = D.TestS.Chi2(D.Full)
-                Pen  = 0.5*(j+ns) * np.log( float(j+ns) / 2*pi*e) # prior strength = j + # signals
+                Raw = D.TestS.KL(D.Full)
+                Pen = float(j) * np.log(D.Nint/(j*e)) / 2
 
                 pdot()
             except (np.linalg.linalg.LinAlgError, ValueError):
                 pdot(pchar="x")
                 continue
             L[j] = Raw + Pen
+
         j = np.nanargmin(L)
 
         return j, L[j]
@@ -227,6 +228,7 @@ class Optimizer(ParametricObject):
     def ObjFunc(self, arg):
         prst()
         pstr(str_nl % "Nint" + "%.2f" % self.DataSet.Nint)
+        pstr(str_nl % "Neff" + "%.2f" % self.DataSet.Neff)
         pstr(str_nl % "Signals" + " ".join(self.DataSet.GetActive()))
         pstr(str(self))
 
@@ -255,7 +257,7 @@ class Optimizer(ParametricObject):
         self._fitparam = Factory._fitparam
         ParametricObject.__init__(self, **Factory.ParamVal)
 
-        self.Prior     = TruncatedSeries(self.Factory, np.zeros((Factory["Nbasis"],)), 1.0, Nmax=2 )
+        self.Prior     = TruncatedSeries(self.Factory, np.zeros((Factory["Nbasis"],)), DataSet.Neff/DataSet.Nint, Nmax=2 )
         self.PriorGen  = Factory.Pri()
         self.Xfrm      = self.Factory.Xfrm()
 
@@ -293,9 +295,9 @@ class DataSet(ParametricObject):
 
         self.Mom[:Nb] = self.Factory.CachedDecompose(self.x, self.w, str(self.uid), cksize=cksize, Nbasis=Nb)
 
-        self.Full     = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
-        self.TestS    = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
-        self.TestB    = TruncatedSeries(self.Factory, self.Mom, self.Nint, Nmax=N )
+        self.Full     = TruncatedSeries(self.Factory, self.Mom, self.Neff, Nmax=N )
+        self.TestS    = TruncatedSeries(self.Factory, self.Mom, self.Neff, Nmax=N )
+        self.TestB    = TruncatedSeries(self.Factory, self.Mom, self.Neff, Nmax=N )
         pend()
 
         Act = self.GetActive() if reduced else self.Signals
@@ -395,6 +397,7 @@ class DataSet(ParametricObject):
         # Record some vital stats
         self.uid       = self.x.dot(self.w)  # Use the weighted sum as a datset identifier.
         self.Nint      = self.w.sum()
+        self.Neff      = self.Nint**2 / np.dot(self.w, self.w)
         self.w        /= self.Nint
 
         self.Factory   = Factory
@@ -492,17 +495,19 @@ class TruncatedSeries(object):
                  max(self.Nmax, othr.Nmax))
 
     # Get the entropy of this TruncatedSeries.
-    def Entropy(self, **kwargs):
+    def Entropy(self):
        j     = kwargs.get('j', self.Nmin)
        k     = kwargs.get('k', self.Nmax)
+       k     = min(k, self.Ncov/2)
        Cov   = self.Cov[j:k,j:k]
 
        return slogdet(2*pi*e*Cov)[1] / 2
 
     # Dkl(othr||self) --> prior.KL(posterior). If specified, scale the
-    #  statistical precision of 'self' by Scalee
+    #  statistical precision of 'self' by Scale
     def KL(self, othr):
         j, k        = self._ci(othr)
+        k           = min(k, self.Ncov/2, othr.Ncov/2)
         delta       = self.MomAct[j:k] - othr.MomAct[j:k]
 
         ChSelf      = cho_factor(self.Cov[j:k,j:k])
@@ -514,6 +519,7 @@ class TruncatedSeries(object):
     #Log-likelihood of othr with respect to self.
     def Chi2(self, othr):
         j, k        = self._ci(othr)
+        k           = min(k, self.Ncov/2)
         delta       = self.MomAct[j:k] - othr.MomAct[j:k]
 
         Ch          = cho_factor(self.Cov[j:k,j:k])
@@ -524,6 +530,7 @@ class TruncatedSeries(object):
     # Negative log-likelihood of othr with respect to self.
     def LogP(self, othr):
         j, k        = self._ci(othr)
+        k           = min(k, self.Ncov/2)
         delta       = self.MomAct[j:k] - othr.MomAct[j:k]
 
         Ch          = cho_factor(self.Cov[j:k,j:k])
@@ -537,6 +544,7 @@ class TruncatedSeries(object):
         self.Nmin   = kwargs.get('Nmin', self.Nmin)
         self.Nmax   = kwargs.get('Nmax', self.Nmax)
         self.Mom    = kwargs.get('Mom',  self.Mom).copy()
+        Ncov        = self.Mom.size
 
         # Truncate or pad with zeros as necessary.  Keep a copy of the original.
         self.MomU = self.Mom.copy()
@@ -549,6 +557,7 @@ class TruncatedSeries(object):
         N           = self.Cov.shape[0]
         self.Mx     = self.Factory.MomMx( self.Mom, self.Nmin, self.Nmax, out=self.Mx)
         self.Cov    = (self.Mx - np.outer(self.MomAct[:N], self.MomAct[:N])) / self.StatPre
+        self.Ncov   = Ncov
 
     # Set the moments from an iterator
     def FromIter(self, iter):
