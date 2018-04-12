@@ -503,18 +503,20 @@ class Transform(ParametricObject):
         parameters are specified in kwargs.  Each positional argument
         should be an ndarray moment vector.
         '''
+        for p in self._param:
+            if p not in kwargs:
+                kwargs[p] = self.ParamVal[p]
+
         inv = kwargs.get("inv", False)
 
         ini = kwargs        if inv else self.ParamVal
         fin = self.ParamVal if inv else kwargs
         ret = np.stack(vec, axis=1)[:self["Nxfrm"]]
-        
-        for p in self._param:
-            try:
-                arg = getattr(self, "par" + p)(fin[p], ini)
-                ret = expm_multiply( arg * self.KMx[p].T, ret )
-            except KeyError:
-                pass
+
+        arg = self.XfPar(fin, ini)
+        mx  = sum( arg[p] * self.KMx[p].T for p in self._param )
+        ret = expm_multiply( mx, ret )
+
         return tuple(ret.T)
 
     @Cache.AtomicElement("{self.Factory.FDDir}", "data", "ele-cache-{name:s}", "{0:d}-{1:d}.json")

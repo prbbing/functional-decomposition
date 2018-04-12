@@ -80,6 +80,7 @@ import Tools.Base          as Base
 
 from   Tools.PrintMgr      import *
 from   numpy.core.umath    import euler_gamma
+from   scipy.special       import exprel
 from   fractions           import Fraction
 from   math                import log, sqrt, ceil
 
@@ -242,7 +243,7 @@ class ExpPrior (Base.Basis):
     def Moment(self):
         if self.N != 1:
             return 0
-        return 2**(1./2 - 1./self['Alpha'])
+        return 1./sqrt(2)
 
 #### Transformation matrix generator for orthogonal exponentials.
 class ExpDecompTransform(Base.Transform):
@@ -303,10 +304,15 @@ class ExpDecompTransform(Base.Transform):
     def Lambda   (self, n):   return Fraction(1, n**2)    if n > 0 else 0
 
     # Infinitesimal transformation parameters
-    # 'fin' is the final value for the parameter;
+    # 'fin' is a dict with the final value for all parameter;
     # 'ini' is a dict with the initial value for all parameters
-    def parAlpha (self, fin, ini): return log( fin / ini["Alpha"] )
-    def parLambda(self, fin, ini): return -ini["Alpha"] * log(fin / ini["Lambda"])
+    def XfPar (self, fin, ini):
+        r  = log( fin["Lambda"] / ini["Lambda"] )
+        yc = log( fin["Alpha"]  / ini["Alpha"] )
+        ys = -fin["Alpha"] * r / exprel(yc)
+
+        return { "Alpha": yc, "Lambda": ys }
+
 
 #### A decomposer factory using the orthonormal exponentials
 class ExpDecompFactory ( Base.DecompFactory ):
