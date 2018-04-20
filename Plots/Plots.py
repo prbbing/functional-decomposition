@@ -368,7 +368,7 @@ def mass_scan(fig, gs, scan, **kwargs):
             ax[0].fill_between(scan[name].Mass, e[:,0], e[:,4], color='y' )
             ax[0].fill_between(scan[name].Mass, e[:,1], e[:,3], color='g' )
         ax[0].plot(scan[name].Mass, e[:,2],            label=n, color=c, ls='--')
-        ax[0].plot(scan[name].Mass, scan[name].ObsLim, label=n, color=c, ls='-')
+        ax[0].plot(scan[name].Mass, scan[name].ObsLim, label=n + " ", color=c, ls='-')
 
     extr = plt.Rectangle((0, 0), 1, 1, fc="w", fill=False, edgecolor='none', linewidth=0)
     h, l = ax[0].get_legend_handles_labels()
