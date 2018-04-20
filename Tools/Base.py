@@ -311,7 +311,6 @@ class DecompFactory(ParametricObject):
         ne.set_num_threads(self.Nthread)
 
         self.TDot       = self.OpMatrix( self["Nxfrm"] )
-        self.TDotF      = self.OpMatrix( self["Nbasis"], M=self["Ncheck"] )
 
         self['Factory'] = self
 

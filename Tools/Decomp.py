@@ -9,7 +9,8 @@ from   scipy.linalg        import solve
 from   numpy.linalg        import slogdet, multi_dot
 from   scipy.linalg        import cho_factor, cho_solve
 from   math                import pi, e, sqrt
-from   scipy.special       import erfinv
+from   scipy.special       import erfinv, gamma, gammaln, gammainc, gammaincc
+from   scipy.stats         import norm
 
 import time
 
@@ -17,71 +18,77 @@ import time
 ## Conduct a signal scan on a DataSet and store the results.
 ###
 class SignalScan(ParametricObject):
-    @Cache.Element("{self.Factory.CacheDir}", "Bcs", "{self.Factory}", "{self.DataSet}", "{self.SigName}.npy")
-    def _getBcs(self, SigMoms, P):
-        n            = self.DataSet.N
-        m            = P.shape[0]
-        Bcs          = np.zeros((m, m, n))
+    # p-values for [-2, -1, 0, 1, 2] sigma levels
+    _siglevels = [0.022750, 0.158655, 0.5, 0.841345, 0.977250]
 
-        for i in range(n):
-            Bcs[:,:,i] = multi_dot( ( P, self.Bct[i,n:,n:], P.T ) )
-        return Bcs
+    # Get the background and signal variance contributions
+    @Cache.Element("{self.Factory.CacheDir}", "var", "{self.Factory}", "{self.DataSet}", "{self.SigName}.npy")
+    def _varCache(self, DataMom, SigMoms, P, Rs):
+        n      = self.DataSet.N
+        Mb     = DataMom.copy()
+        Mb[n:] = Rs[:-1].dot( SigMoms[:-1, n:] )
 
-    @Cache.Element("{self.Factory.CacheDir}", "Scs", "{self.Factory}", "{self.DataSet}", "{self.SigName}.npy")
-    def _getScs(self, SigMoms, P):
-        n            = self.DataSet.N
-        m            = P.shape[0]
-        Sct          = self.Factory.MxTensor( SigMoms[-1] )
-        Scs          = np.zeros((m, m, m))
-        Scs[:,:,m-1] = multi_dot( ( P, Sct[n:,n:,0], P.T ) )
+        Ms     = SigMoms[-1]
+        MxB    = self.Factory.CovMatrix(Mb)
+        MxS    = self.Factory.MxTensor(Ms)[:,:,0]
 
-        for i in range(m-1):
-            Scs[:,:,i] = multi_dot( ( P, self.Sct[i,n:,n:], P.T ) )
-        return Scs
+        Cb     = multi_dot( (P[-1], MxB[n:,n:], P[-1]) )
+        Cs     = multi_dot( (P[-1], MxS[n:,n:], P[-1]) )
+
+        return Cb, Cs
 
     # covariance helper function
     def _cov(self, t):
-        n   = self.DataSet.N
-        Bcs = self.Bcs[:,:,:n]
-        Scs = self.Scs
+        return self.Cb + t*self.Cs - t**2
 
-        return Bcs.dot(self.b) + Scs.dot(t) - np.outer(t, t)
+    # CDF of continuous Poisson (above k)
+    def cpd_cdf_up(self, lam, k):
+        Cl = gammainc (lam, 1)
+        Cu = gammaincc(lam, 1)
 
-    # Return the log-likelihood of data assuming t
-    def _gvecprob(self, t):
-        cov   = self._cov(t) / self.DataSet.Nint
-        delta = self.x - t
+        return (gammaincc(lam, k) - Cl) / Cu
+
+    # CDF of continuous Poisson (below k)
+    def cpd_cdf_dn(self, lam, k):
+        Cl = gammainc (lam, 1)
+        Cu = gammaincc(lam, 1)
+
+        return (gammainc(lam, k) - Cl) / Cu
+
+    # PDF of continuous Poisson
+    def cpd_pdf(self, lam, k):
+        Cu = gammaincc(lam, 1)
+
+        return np.exp( k*np.log(lam) - lam - gammaln(k+1) ) / Cu
+
+    # Return the log-likelihood of data x assuming t (can be an ndarray)
+    # x is in events; t is a moment
+    def _gvecprob(self, x, t):
+        cov  = self._cov(t) * self.DataSet.Nint
 
         if self.Lumi > 0:
-            cov += self.LumiUnc * np.outer(t, t) / self.DataSet.Nint
+            cov  += self.DataSet.Nint * self.LumiUnc * t**2
 
-        try:
-            ch = cho_factor(cov)
-            c  = delta.dot(cho_solve(ch, delta))
-            l  = np.log(np.diag(ch[0])).sum()
+        return self.cpd_pdf(cov, cov - t*self.DataSet.Nint + x)
 
-            return c/2 + l
-        except (np.linalg.linalg.LinAlgError, ValueError):
-            return np.inf
+    # Return the upper limit for x
+    def UL(self, x):
+        c      = self._gvecprob(x, self.t).cumsum()
+        idx    = np.searchsorted(c/c[-1], self.Confidence)
+        ul     = self.t[idx] * self.DataSet.Nint
 
-    def UL(self, x, p = 0.05):
-        self.x = x
-        s      = x.dot(self.dvec)
+        return ul / self.Lumi if self.Lumi > 0 else ul
 
-        proj   = x - s * self.dvec          # NP signal projected off
-        base   = proj if s < 0 else x       # Base point for limit
+    # Return the moments equivalent to (-2, -1, 0, +1, +2)-sigma levels
+    def _levels(self, var, npt=int(1e5), levels=(-2, -1, 0, 1, 2)):
+        start = var - 4*sqrt(var)
+        end   = var + 4*sqrt(var)
+        t     = np.linspace(max(1e-12, start), end, npt + 1)
 
-        ptgt   = self._gvecprob(base) - sqrt(2) * erfinv(p-1)
-        gpos   = lambda t: np.dot(t, self.dvec)
-        gcon   = lambda t: ptgt - self._gvecprob(t)
-        gobj   = lambda t: -self.DataSet.Nint*np.dot(t, self.dvec)
+        cdf   = self.cpd_cdf_dn(var, t)
+        idx   = np.searchsorted(cdf, norm.cdf(levels) ) - 1
 
-        res    = minimize(gobj, base, constraints=[{'type':   'eq', 'fun': gcon },
-                                                   {'type': 'ineq', 'fun': gpos }],
-                                      options={'maxiter': 200, 'eps': 1e-12})
-        if not res.success:
-            print res
-        return -res.fun / self.Lumi if self.Lumi > 0 else - res.fun
+        return t[idx] - var
 
     # Implementation of iterator.
     def next(self):
@@ -91,33 +98,27 @@ class SignalScan(ParametricObject):
             raise StopIteration
 
         Data           = self.DataSet
-        self.SigName   = self.Names[self.idx]
-        SigNames       = Data.GetActive(self.SigName)
-        signals        = [ Data[name] for name in SigNames ]
-
         DataMom        = getattr(Data, Data.attr)
-        SigMoms, P     = Data.NormSignalEstimators(self.SigName)
 
-        self.Scs       = self._getScs(SigMoms, P)
-        self.Bcs       = self._getBcs(SigMoms, P)
+        self.SigName   = self.Names[self.idx]
+        SigMoms, P     = Data.NormSignalEstimators(self.SigName)   # Raw signals, estimators
+        Rs             = P.dot(DataMom[Data.N:])                   # Estimated signal moments
 
-        self.dvec      = np.array( [ x.name == self.SigName for x in signals ] )
-        Rb             = np.array( [ x.Moment for x in signals ] )
-        Rs             = P.dot(DataMom[Data.N:])
-
-        # Nominal background
-        self.b         = DataMom[:Data.N] - Rb.dot( SigMoms[:,:Data.N] )
+        # Get the background and signal variance contributions.
+        self.Cb, self.Cs = self._varCache(DataMom, SigMoms, P, Rs)
 
         # Store the output values and calculate limits
         i              = self.idx
-        S              = multi_dot((self.dvec, self._cov(Rb), self.dvec))
-        self.Sb        = sqrt(S / Data.Nint)
+        S              = multi_dot((P[-1], self.MxC[Data.N:,Data.N:], P[-1]))
+        self.var       = S * Data.Nint
+        pts            = self._levels(self.var)
 
         self.Mass  [i] = Data[self.SigName].Mass
-        self.Yield [i] = Rs.dot(self.dvec) * Data.Nint
-        self.Unc   [i] = sqrt(S * Data.Nint)
-        self.ObsLim[i] =   self.UL( Rs )
-        self.ExpLim[i] = [ self.UL( Rb + v*self.Sb*self.dvec) for v in range(-2, 3) ]
+        self.Yield [i] = Rs[-1] * Data.Nint
+        self.Unc   [i] = sqrt(self.var)
+        self.ObsLim[i] =   self.UL( Rs[-1] * Data.Nint )
+        self.ExpLim[i] = [ self.UL( v ) for v in pts ]
+        self.PValue[i] = self.cpd_cdf_up(self.var + self.Yield[i], self.var)
 
         return self.SigName, self.Yield[i], self.Unc[i], self.ObsLim[i], self.ExpLim[i]
 
@@ -126,9 +127,15 @@ class SignalScan(ParametricObject):
     #   and greatly speeds up the sums in _setShortCov.
     def __iter__(self):
         sl       = self.DataSet.GetActive()
-        Sig      = np.array([ self.DataSet[s].Sig for s in sl ])
-        self.Bct = self.Factory.TDotF.T[:self.Factory["Ncheck"]]
-        self.Sct = self.Factory.MxTensor( *Sig ).T.copy()
+        SigMoms  = sum( self.DataSet[s].Moment * self.DataSet[s].Sig for s in sl )
+
+        Data     = self.DataSet
+        n        = self.DataSet.N
+        DataMom  = getattr(Data, Data.attr)
+
+        Mom      = DataMom.copy()
+        Mom[n:]  = SigMoms[n:]
+        self.MxC = self.Factory.CovMatrix(Mom)
 
         return self
 
@@ -137,8 +144,12 @@ class SignalScan(ParametricObject):
 
         self.Factory    = Factory
         self.DataSet    = DataSet
-        self.Lumi       = float(kwargs.get("Lumi",    0.0))
-        self.LumiUnc    = float(kwargs.get("LumiUnc", 0.0))
+        self.Lumi       = float(kwargs.get("Lumi",             0.0))
+        self.LumiUnc    = float(kwargs.get("LumiUnc",          0.0))
+
+        self.Nmax       = float(kwargs.get("Nmax",             1e5))
+        self.Npt        = float(kwargs.get("Npt",              1e6))
+        self.Confidence = float(kwargs.get("ConfidenceLevel", 0.95))
 
         self.Names      = arg
         self.Mass       = np.zeros( (len(arg),   ) )
@@ -146,8 +157,11 @@ class SignalScan(ParametricObject):
         self.Unc        = np.zeros( (len(arg),   ) )
         self.ExpLim     = np.zeros( (len(arg), 5 ) )
         self.ObsLim     = np.zeros( (len(arg),   ) )
+        self.PValue     = np.zeros( (len(arg),   ) )
 
+        # Initial idx and test points
         self.idx        = -1
+        self.t          = np.linspace(0, self.Nmax, self.Npt) / self.DataSet.Nint
 
 ###
 ## Optimize hyperparameters on a specified DataSet.
@@ -314,8 +328,10 @@ class DataSet(ParametricObject):
         n, N  = self.N, D.size
         Act   = self.GetActive() if reduced else self.Signals
 
-        LCov  = self.Factory.TDotF[n:N,n:N,:n].dot( D[:n] )
-        Ch    = cho_factor( LCov )
+        D[n:] = 0
+        LCov  = self.Factory.CovMatrix(D)[n:N,n:N]
+        reg   = np.diag(LCov).mean() / sqrt(self.Nint)
+        Ch    = cho_factor( LCov + reg*np.eye(N-n))
 
         if verbose: pini("Solving")
         for name in Act:

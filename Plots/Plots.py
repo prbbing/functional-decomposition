@@ -394,10 +394,10 @@ def mass_scan(fig, gs, scan, **kwargs):
         ax[2].plot(XRange, zero + _cdf(n), ls=':', lw=0.5,color='k')
         ax[2].text(t, _cdf(n), '$%d\sigma$' % n, va='center')
     for c, name in zip(cmap, Scans):
-        M = scan[name].Mass[keep[name]]
-        D =  sig[name]     [keep[name]]
+        M = scan[name].Mass  [keep[name]]
+        P = scan[name].PValue[keep[name]]
 
-        ax[2].plot(M, _cdf(D), label=name, color=c)
+        ax[2].plot(M, P, label=name, color=c)
 
     ax[2].set_ylabel(r'p-value')
     ax[2].set_yscale('log')
