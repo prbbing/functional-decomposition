@@ -43,10 +43,9 @@ class SignalScan(ParametricObject):
 
     # CDF of continuous Poisson (above k)
     def cpd_cdf_up(self, lam, k):
-        Cl = gammainc (lam, 1)
         Cu = gammaincc(lam, 1)
 
-        return (gammaincc(lam, k) - Cl) / Cu
+        return gammaincc(lam, k) / Cu
 
     # CDF of continuous Poisson (below k)
     def cpd_cdf_dn(self, lam, k):
