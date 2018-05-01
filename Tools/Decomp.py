@@ -9,7 +9,7 @@ from   scipy.linalg        import solve
 from   numpy.linalg        import slogdet, multi_dot
 from   scipy.linalg        import cho_factor, cho_solve
 from   math                import pi, e, sqrt
-from   scipy.special       import erfinv, gamma, gammaln, gammainc, gammaincc
+from   scipy.special       import erfinv, gammaln, gammainc, gammaincc
 from   scipy.stats         import norm
 
 import time
@@ -25,69 +25,72 @@ class SignalScan(ParametricObject):
     @Cache.Element("{self.Factory.CacheDir}", "var", "{self.Factory}", "{self.DataSet}", "{self.SigName}.npy")
     def _varCache(self, DataMom, SigMoms, P, Rs):
         n      = self.DataSet.N
+        P1     = P[-1]
+
         Mb     = DataMom.copy()
         Mb[n:] = Rs[:-1].dot( SigMoms[:-1, n:] )
-
         Ms     = SigMoms[-1]
-        MxB    = self.Factory.CovMatrix(Mb)
-        MxS    = self.Factory.MxTensor(Ms)[:,:,0]
+        Mp     = np.zeros_like(Mb)
+        Mp[n:] = P1
 
-        Cb     = multi_dot( (P[-1], MxB[n:,n:], P[-1]) )
-        Cs     = multi_dot( (P[-1], MxS[n:,n:], P[-1]) )
+        Mx     = self.Factory.MxTensor(Mb, Ms, Mp)
 
-        return Cb, Cs
+        return P1.dot( Mx[n:,n:] ).T
 
-    # covariance helper function
-    def _cov(self, t):
-        return self.Cb + t*self.Cs - t**2
+    # return the first three central moments assuming a signal contribution 't'.
+    def _cmom(self, t):
+        mu1    = t
+        mu2    = self.B2 + mu1*self.S2 - mu1**2
+        mu3    = self.B3 + mu1*self.S3 - 3*mu1*mu2 - mu1**3
+        mu3    = np.maximum(mu2, mu3)
 
-    # CDF of continuous Poisson (above k)
-    def cpd_cdf_up(self, lam, k):
-        Cu = gammaincc(lam, 1)
+        return mu1, mu2, mu3
 
-        return gammaincc(lam, k) / Cu
+    # return the CPD parameters
+    def _CPDpar(self, mu1, mu2, mu3, N):
+        dN     = N - mu1 * self.DataSet.Nint
+        a      = (mu2**3 / mu3**2) * self.DataSet.Nint
+        b      = mu2 / mu3
+        k      = a + b*dN + 0.5
 
-    # CDF of continuous Poisson (below k)
-    def cpd_cdf_dn(self, lam, k):
-        Cl = gammainc (lam, 1)
-        Cu = gammaincc(lam, 1)
+        return a, k
 
-        return (gammainc(lam, k) - Cl) / Cu
+    def CPDpdf(self, mu1, mu2, mu3, N):
+        a, k   = self._CPDpar(mu1, mu2, mu3, N)
+        return np.exp( (k-1)*np.log(a) - a - gammaln(k) )
 
-    # PDF of continuous Poisson
-    def cpd_pdf(self, lam, k):
-        Cu = gammaincc(lam, 1)
+    def CPDcdf(self, mu1, mu2, mu3, N):
+        a, k   = self._CPDpar(mu1, mu2, mu3, N)
+        return np.nan_to_num(gammaincc(k, a))
 
-        return np.exp( k*np.log(lam) - lam - gammaln(k+1) ) / Cu
+    def CPDcdf1m(self, mu1, mu2, mu3, N):
+        a, k   = self._CPDpar(mu1, mu2, mu3, N)
+        return np.nan_to_num(gammainc(k, a))
 
-    # Return the log-likelihood of data x assuming t (can be an ndarray)
-    # x is in events; t is a moment
-    def _gvecprob(self, x, t):
-        cov  = self._cov(t) * self.DataSet.Nint
-
-        if self.Lumi > 0:
-            cov  += self.DataSet.Nint * self.LumiUnc * t**2
-
-        return self.cpd_pdf(cov, cov - t*self.DataSet.Nint + x)
-
-    # Return the upper limit for x
+    # Return the upper limit for x (x in events)
     def UL(self, x):
-        c      = self._gvecprob(x, self.t).cumsum()
+        mu1, mu2, mu3  = self._cmom(self.t)
+        
+        if self.Lumi > 0:
+            mu2  += self.LumiUnc * t**2
+
+        pdf    = self.CPDpdf(mu1, mu2, mu3, x)
+        c      = pdf.cumsum()
         idx    = np.searchsorted(c/c[-1], self.Confidence)
         ul     = self.t[idx] * self.DataSet.Nint
 
         return ul / self.Lumi if self.Lumi > 0 else ul
 
     # Return the moments equivalent to (-2, -1, 0, +1, +2)-sigma levels
-    def _levels(self, var, npt=int(1e5), levels=(-2, -1, 0, 1, 2)):
-        start = var - 4*sqrt(var)
-        end   = var + 4*sqrt(var)
-        t     = np.linspace(max(1e-12, start), end, npt + 1)
+    def _levels(self, Mu2, Mu3, npt=int(1e5), levels=(-2, -1, 0, 1, 2)):
+        var    = Mu2 * self.DataSet.Nint
+        r      = 4*sqrt(var)
+        t      = np.linspace( -r, r, npt + 1)
 
-        cdf   = self.cpd_cdf_dn(var, t)
-        idx   = np.searchsorted(cdf, norm.cdf(levels) ) - 1
+        cdf    = self.CPDcdf(0, Mu2, Mu3, t)
+        idx    = np.searchsorted(cdf, norm.cdf(levels) ) - 1
 
-        return t[idx] - var
+        return t[idx]
 
     # Implementation of iterator.
     def next(self):
@@ -104,20 +107,32 @@ class SignalScan(ParametricObject):
         Rs             = P.dot(DataMom[Data.N:])                   # Estimated signal moments
 
         # Get the background and signal variance contributions.
-        self.Cb, self.Cs = self._varCache(DataMom, SigMoms, P, Rs)
+        P1             = P[-1]
+        PB, PS, P2     = self._varCache(DataMom, SigMoms, P, Rs)
+
+        # Second central moments for b-part, s-part and b-only
+        self.B2        = P1.dot( PB )
+        self.S2        = P1.dot( PS )
+        Mu2            = multi_dot((P1, self.MxC[Data.N:,Data.N:], P1))
+
+        # Third central moments for b-part, s-part and b-only
+        self.B3        = P2.dot( PB )
+        self.S3        = P2.dot( PS )
+        Mu3            = multi_dot((P1, self.MxC[Data.N:,Data.N:], P2))
+        Mu3            = max(Mu2, Mu3)
 
         # Store the output values and calculate limits
         i              = self.idx
-        S              = multi_dot((P[-1], self.MxC[Data.N:,Data.N:], P[-1]))
-        self.var       = S * Data.Nint
-        pts            = self._levels(self.var)
+        self.var       = Mu2 * Data.Nint
+        pts            = self._levels(Mu2, Mu3)
 
         self.Mass  [i] = Data[self.SigName].Mass
         self.Yield [i] = Rs[-1] * Data.Nint
         self.Unc   [i] = sqrt(self.var)
-        self.ObsLim[i] =   self.UL( Rs[-1] * Data.Nint )
+        self.ObsLim[i] =   self.UL( self.Yield[i] )
         self.ExpLim[i] = [ self.UL( v ) for v in pts ]
-        self.PValue[i] = self.cpd_cdf_up(self.var + self.Yield[i], self.var)
+        self.PValue[i] = self.CPDcdf1m(0, Mu2, Mu3, self.Yield[i])
+        self.Sig   [i] = norm.isf(self.PValue[i])
 
         return self.SigName, self.Yield[i], self.Unc[i], self.ObsLim[i], self.ExpLim[i]
 
@@ -157,6 +172,7 @@ class SignalScan(ParametricObject):
         self.ExpLim     = np.zeros( (len(arg), 5 ) )
         self.ObsLim     = np.zeros( (len(arg),   ) )
         self.PValue     = np.zeros( (len(arg),   ) )
+        self.Sig        = np.zeros( (len(arg),   ) )
 
         # Initial idx and test points
         self.idx        = -1
