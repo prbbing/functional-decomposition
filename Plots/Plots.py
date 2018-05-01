@@ -351,7 +351,7 @@ def mass_scan(fig, gs, scan, **kwargs):
                ( min([x.Mass.min() for x in scan.values()]),
                  max([x.Mass.max() for x in scan.values()]) ))
 
-    sig    = { n: x.Yield / x.Unc                           for n, x in scan.items() }
+    sig    = { n: x.Sig                                     for n, x in scan.items() }
     keep   = { n: (x.Mass > XRange[0])*(x.Mass < XRange[1]) for n, x in scan.items() }
 
     sigmax =   max([x[keep[name]].max() for name, x in sig.items()])
@@ -383,7 +383,7 @@ def mass_scan(fig, gs, scan, **kwargs):
     ax[1].fill_between(XRange, zero-1, zero+1, color='g' )
     ax[1].plot        (XRange, zero,           color='k', ls=':' )
     for c, name in zip(cmap, Scans):
-        ax[1].plot(scan[name].Mass, sig[name], label=name, color=c)
+        ax[1].plot(scan[name].Mass, scan[name].Sig, label=name, color=c)
 
     ax[1].set_ylabel(r'Dev. ($\sigma$)')
     ax[1].set_ylim(-3, 3)
