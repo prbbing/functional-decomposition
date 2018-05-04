@@ -72,7 +72,7 @@ class SignalScan(ParametricObject):
         mu1, mu2, mu3  = self._cmom(self.t)
         
         if self.Lumi > 0:
-            mu2  += self.LumiUnc * t**2
+            mu2  += self.LumiUnc * self.t**2
 
         pdf    = self.CPDpdf(mu1, mu2, mu3, x)
         c      = pdf.cumsum()
