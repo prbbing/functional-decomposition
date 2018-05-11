@@ -133,21 +133,22 @@ def fit(fig, gs, D, **kwargs):
     LogY     = kwargs.get("LogY",   True)
     Style    = kwargs.get("Style",  "bar")
     ResYLim  = kwargs.get("ResYLim", (-2.5, 2.5))
+    YLim     = kwargs.get("YLim",    None)
 
     # Get some bin-derived quantities
     ctr      = (Bins[1:] + Bins[:-1])/2
     wd       = np.diff(Bins)
     rn       = (Bins[0], Bins[-1])
 
-    h, _     = np.histogram(D.x, bins=Bins, range=rn, weights=D.Nint*D.w)
-    scale    = D.Nint * wd[0]
+    h, _     = np.histogram(D.x, bins=Bins, range=rn, weights=D.w)
+    h       *= D.Nint / wd
     t        = np.linspace(rn[0], rn[1], 50*len(Bins))
-    err      = np.sqrt(h, dtype=np.double)
+    err      = np.sqrt(h*wd, dtype=np.double)/wd
 
     # Make fit comparison
-    tb       = scale*_integrate(D.TestB, Bins)
-    ts       = scale*_integrate(D.TestS, Bins)
-    res      = (h - ts)/np.sqrt(ts)
+    tb       = D.Nint * _integrate(D.TestB, Bins)
+    ts       = D.Nint * _integrate(D.TestS, Bins)
+    res      = (h*wd - ts*wd)/np.sqrt(ts*wd)
 
     # Histogram and fit
     if Style == "bar":
@@ -157,13 +158,15 @@ def fit(fig, gs, D, **kwargs):
     else:
         print "Style key must be 'bar' or 'errorbar'."
 
-    ax[0].plot(t, scale*D.TestB(t), ls='--', color='red', label='Background', zorder=10)
+    ax[0].plot(t, D.Nint*D.TestB(t), ls='--', color='red', label='Background', zorder=10)
     if len(D.GetActive()) > 0:
-        ax[0].plot(t, scale*D.TestS(t), ls='-',  color='red',   label='Signal+Bkg', zorder=10)
+        ax[0].plot(t, D.Nint*D.TestS(t), ls='-',  color='red',   label='Signal+Bkg', zorder=10)
     ax[0].legend()
     ax[0].yaxis.grid(ls=':')
     ax[0].set_ylabel(YLabel)
     if LogY: ax[0].set_yscale('log')
+
+    if YLim is not None: ax[0].set_ylim(*YLim)
 
     # The background-subtracted data
     if Style == "bar":
@@ -175,7 +178,7 @@ def fit(fig, gs, D, **kwargs):
 
     ax[1].plot(t, np.zeros_like(t), ls='--', color='red')
     if len(D.GetActive()) > 0:
-        ax[1].plot(t, scale*(D.TestS(t) - D.TestB(t)), ls='-', color='red', zorder=10)
+        ax[1].plot(t, D.Nint*(D.TestS(t) - D.TestB(t)), ls='-', color='red', zorder=10)
     ax[1].ticklabel_format(style='sci', axis='y', scilimits=(-2,2))
     ax[1].set_ylabel(r'Data - Bkg')
 
