@@ -163,7 +163,6 @@ D.Decompose(reduced=False)
 FOpt.UpdateXfrm(**PBest)
 NBest, LBest = FOpt.ScanN(attr="Mom")
 D.SetN(N=NBest, attr="Mom")    # attr="Mom": use the full expansions from here on out
-
 D.Covariance()
 if len(D.Signals) > 0:
     D.PrepSignalEstimators(reduced=False, verbose=True)
@@ -245,7 +244,9 @@ ini =   fConf["Lambda"],   fConf["Alpha"]
 fin = Factory["Lambda"], Factory["Alpha"]
 
 Plots.cutflow      (cutflow,             pdf=pdf, fname=op('cutflow.pdf'))
-Plots.scan         (L, A, LLH, ini, fin, pdf=pdf, fname=op('hyperparameter_scan.pdf'))
+
+if LLH.size > 3:
+    Plots.scan     (L, A, LLH, ini, fin, pdf=pdf, fname=op('hyperparameter_scan.pdf'))
 Plots.summary_table(D,                   pdf=pdf, fname=op('signal_summary.pdf'))
 
 for p, file in ConfigIter(Config, "Plot", "PlotDefault"):
