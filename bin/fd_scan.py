@@ -224,6 +224,20 @@ print
 print
 print "=====> CORRELATION < ====="
 print D.Corr
+print
+print
+print "=====> RAW MOMENTS <====="
+for n in range(33):
+  print "% 3d: %+.3e   " % (n, D.Mom[n]),
+  if n % 4 == 3: print
+print
+print
+print "=====> BACKGROUND COEFFICIENTS <====="
+for n in range(D.N):
+  print "% 3d: %+.3e   " % (n, D.TestB.Mom[n]),
+  if n % 4 == 3: print
+print
+print
 
 ######
 # Plotting
