@@ -98,13 +98,15 @@ fConf['CacheDir'] = os.path.join(ArgC.base, "Cache")
 
 # Read input variables.
 SetList   = Config.items("InputFiles")
-varName   = Config.get("General", "Variable")
-wgtName   = Config.get("General", "Weight")
-Scale     = Config.get("General", "Scale")
-Lumi      = Config.get("General", "Lumi",      0.0)
-LumiUnc   = Config.get("General", "LumiUnc",   0.0)
-XSecUnits = Config.get("General", "XSecUnits") if Lumi > 0 else "Events"
 
+General   = { p: r for p, r in Config.items("General") }
+varName   = General.get("Variable")
+wgtName   = General.get("Weight")
+Scale     = General.get("Scale")
+Lumi      = General.get("Lumi",      0.0)
+LumiUnc   = General.get("LumiUnc",   0.0)
+XSecUnits = General.get("XSecUnits") if Lumi > 0 else "Events"
+NumOpt    = General.get("NumOptSteps", 1)
 
 print
 print
@@ -149,9 +151,11 @@ print
 ### decompose; scan hyperparameters; decompose; fit from best location.
 D.Decompose(xonly=True)
 LLH, PBest        = FOpt.ScanW(A, L)
-Factory.update( PBest )
-D.Decompose(xonly=True)
-NBest, LBest, PBest = FOpt.FitW()
+
+for _ in range(int(NumOpt)):
+    Factory.update( PBest )
+    D.Decompose(xonly=True)
+    NBest, LBest, PBest = FOpt.FitW()
 
 ### Re-decompose, extract signals, and validate that xfrm gave good moment estimates.
 Factory.update( PBest)
