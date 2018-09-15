@@ -50,7 +50,7 @@ def gsPlot(*fargs, **fkw):
 
             # Do some layout cleanup and save.
             gs.tight_layout(plt.gcf(), rect=[0, 0, 1, 0.97])
-            gs.update(wspace=0.00, hspace=0.06)
+            gs.update(wspace=0.00, hspace=0.1)
             if pdf is not None:
                 plt.savefig(pdf, format='pdf')
             if fname is not None:
@@ -90,14 +90,15 @@ def cutflow(fig, gs, cutflow):
 
 ######## HYPERPARMETER SCAN #######
 @gsPlot(1, 2, width_ratios=[19, 1])
-def scan(fig, gs, L, A, LLH, ini, fin):
+def scan(fig, gs, L, A, LLH, LBest, ini, fin):
     ax  = [ plt.subplot(g) for g in gs ]
 
     # interpolate between data points for contouring
     triI   = tri.Triangulation(L.flatten(), A.flatten())
     ref    = tri.UniformTriRefiner(triI)
 
-    dLLH   = np.minimum(LLH - LLH.min(), 600)
+    #dLLH   = np.minimum(LLH - LLH.min(), 600)
+    dLLH   = np.minimum(LLH - LBest, 600)
     triO   = ref.refine_field(dLLH.flatten(), subdiv=3)
 
     cmap   = cm.get_cmap(name='terrain', lut=None)
@@ -108,7 +109,7 @@ def scan(fig, gs, L, A, LLH, ini, fin):
     Csf    = ax[0].tricontourf(*triO, levels=levels, cmap=cmap)
     Cs     = ax[0].tricontour (*triO, levels=levels, colors=colors, linewidths=lws)
     #sca    = ax[0].scatter(L,  A,  marker='.', s= 1.0, color='k', label="Scan Point")
-    sca2   = ax[0].scatter(*ini,   marker='o', s=20.0, color='r', label="Initial", zorder=10)
+    #sca2   = ax[0].scatter(*ini,   marker='o', s=20.0, color='r', label="Initial", zorder=10)
     sca3   = ax[0].scatter(*fin,   marker='x', s=35.0, color='r', label="Final", zorder=10)
 
     fig.colorbar(Csf, ticks=levels[::5], cax=ax[1])

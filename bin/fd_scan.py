@@ -155,7 +155,7 @@ LLH, PBest        = FOpt.ScanW(A, L)
 for _ in range(int(NumOpt)):
     Factory.update( PBest )
     D.Decompose(xonly=True)
-    NBest, LBest, PBest = FOpt.FitW()
+    NBest, LBestmin, PBest = FOpt.FitW()
 
 ### Re-decompose, extract signals, and validate that xfrm gave good moment estimates.
 Factory.update( PBest)
@@ -260,7 +260,7 @@ fin = Factory["Lambda"], Factory["Alpha"]
 Plots.cutflow      (cutflow,             pdf=pdf, fname=op('cutflow.pdf'))
 
 if LLH.size > 3:
-    Plots.scan     (L, A, LLH, ini, fin, pdf=pdf, fname=op('hyperparameter_scan.pdf'))
+    Plots.scan     (L, A, LLH, LBestmin, ini, fin, pdf=pdf, fname=op('hyperparameter_scan.pdf'))
 Plots.summary_table(D,                   pdf=pdf, fname=op('signal_summary.pdf'))
 
 for p, file in ConfigIter(Config, "Plot", "PlotDefault"):
