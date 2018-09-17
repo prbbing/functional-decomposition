@@ -148,8 +148,12 @@ def fit(fig, gs, D, **kwargs):
 
     # Make fit comparison
     tb       = D.Nint * _integrate(D.TestB, Bins)
-    ts       = D.Nint * _integrate(D.TestS, Bins)
-    res      = (h*wd - ts*wd)/np.sqrt(ts*wd)
+    ts=0
+    if len(D.GetActive()) > 0:
+        ts       = D.Nint * _integrate(D.TestS, Bins)
+        res      = (h*wd - ts*wd)/np.sqrt(ts*wd)
+    else:
+        res      = (h*wd - tb*wd)/np.sqrt(tb*wd)
 
     # Histogram and fit
     if Style == "bar":

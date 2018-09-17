@@ -148,7 +148,8 @@ class SignalScan(ParametricObject):
         DataMom  = getattr(Data, Data.attr)
 
         Mom      = DataMom.copy()
-        Mom[n:]  = SigMoms[n:]
+        if len(self.DataSet.GetActive()) > 0:
+            Mom[n:]  = SigMoms[n:]
         self.MxC = self.Factory.CovMatrix(Mom)
 
         return self
@@ -410,7 +411,7 @@ class DataSet(ParametricObject):
 
         self.attr = attr
 
-        if len(self.Signals) > 0:
+        if len(self.GetActive()) > 0:
             self.PrepSignalEstimators(verbose=False)
             self.ExtractSignals(Mom)
         else:
@@ -514,7 +515,7 @@ class TruncatedSeries(object):
         Val      = np.zeros_like(x)
         w        = np.ones_like(x)
 
-        for D in self.Factory.Fn(x, w, Nbasis=Mom.size):
+        for D in self.Factory.Fn(x, w, Nbasis=self.Nmax):
             if D.N >= self.Nmin:
                 Val  += D.Values() * Mom[D.N]
 
