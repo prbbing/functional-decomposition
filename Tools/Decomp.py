@@ -208,7 +208,7 @@ class Optimizer(ParametricObject):
         L  = np.full((self.Factory["Ncheck"],), np.inf)
         D  = self.DataSet
         a  = kwargs.get("attr", "MomX")
-        ns = len( D.GetActive() ) - 1 + len( self.Factory._fitparam )
+        h  = D.Full.Mom[1] * sqrt(2)
 
         self.UpdateXfrm(reduced=reduced)
 
@@ -216,8 +216,9 @@ class Optimizer(ParametricObject):
             try:
                 D.SetN(j, attr=a)
 
-                Raw = D.TestS.KL(D.Full)
-                Pen = float(j) * np.log(D.Nint/(j*e)) / 2
+                dof  = (j**2 + j) / 2
+                Raw  = D.TestS.LogP(D.Full)
+                Pen  = float(j) * np.log(D.Nint/(dof*h*e)) / 2
 
                 pdot()
             except (np.linalg.linalg.LinAlgError, ValueError):
