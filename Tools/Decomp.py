@@ -232,9 +232,9 @@ class Optimizer(ParametricObject):
 
     # Optimize the hyperparameters
     @pstage("Optimizing Hyperparameters")
-    def FitW(self):
+    def FitW(self, initial_simplex=None):
         ini = [ self.Factory[p] for p in self.Factory._fitparam ]
-        res = minimize(self.ObjFunc, ini, method='Nelder-Mead', options={'xatol': 1e-2})
+        res = minimize(self.ObjFunc, ini, method='Nelder-Mead', options={'xatol': 1e-2, 'initial_simplex' : initial_simplex})
         par = dict(zip(self.Factory._fitparam, res.x))
 
         # Now set to the best parameters
@@ -247,14 +247,22 @@ class Optimizer(ParametricObject):
 
     # Scan through a grid of hyperparameters
     @pstage("Scanning Hyperparameters")
-    def ScanW(self, *par):
-        self.Nfex = par[0].size
+    def ScanW(self, Ax, Lx, Ad, Ld):
+        D        = self.DataSet
+        LLH      = []
+        P        = []
 
-        LLH  = np.vectorize(lambda *arg: self.ObjFunc(arg) )(*par)
-        best = np.where(LLH == LLH.min())
-        x    = [ v[best] for v in par ]
+        for ax, lx, ad, ld in zip(Ax.ravel(), Lx.ravel(), Ad.ravel(), Ld.ravel()):
+            if ad != self.Factory["Alpha"] or ld != self.Factory["Lambda"] or not hasattr(D, "Full"):
+                self.Factory.update( {'Alpha': ad, 'Lambda': ld} )
+            D.Decompose(xonly=True)
 
-        return LLH, dict(zip(self.Factory._fitparam, x))
+            LLH.append( self.ObjFunc((ax, lx)) )
+            P.append  ( { 'Alpha' : ax, 'Lambda' : lx } )
+
+        LLH = np.asarray(LLH)
+
+        return LLH.reshape(Ax.shape), P[ np.nanargmin(LLH) ]
 
     def ObjFunc(self, arg):
         prst()
@@ -315,7 +323,6 @@ class DataSet(ParametricObject):
     def GetActive(self, *args):  return [ n for n in self.Signals if self[n].Active or self[n].name in args ]
 
     # Decompose the dataset and active signals
-    @pstage("Decomposing")
     def Decompose(self, reduced=True, xonly=False, cksize=2**20):
         pini("Data Moments")
         N             = self.Factory["Nxfrm"]

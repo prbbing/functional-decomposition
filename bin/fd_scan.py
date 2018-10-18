@@ -85,15 +85,41 @@ np.set_printoptions(precision=2)
 # Initialize the factory and signal models.
 ######
 
-# Get initial hyperparameter scan range
-ranges  = { p : r for p, r in Config.items("HyperParameterScan") }
-rlist   = [ ranges[p] for p in ExpDecompFactory._fitparam ]
-A, L    = eval( "np.mgrid[%s]" % ",".join(rlist) )
+# Get hyperparameter scan range
+ranges     = { p : r.rstrip("j") for p, r in Config.items("HyperParameterScan") }
+rcomp      = [ ranges[p].split(':')for p in ExpDecompFactory._fitparam ]
+
+rlist_xfrm = []  # The hyperparameter scan range for transformations
+rlist_dcmp = []  # The scan range for direct decompositions
+
+for param, r in zip(ExpDecompFactory._fitparam, rcomp) :
+    start  = min( float(r[0]), float(r[1]))
+    stop   = max( float(r[0]), float(r[1]))
+    step_x = float(r[2])
+    step_d = float(r[3]) if len(r) > 3 else 1
+
+    dcmp   = np.linspace (start,     stop, step_d)
+    xidx   = np.linspace (    0, step_d-1, step_x)
+    xfrm_r = np.linspace (start,     stop, step_x)
+
+    if param == 'Alpha':
+        dcmp_idx = np.round(xidx-0.5, 0).astype(int)
+    elif param == 'Lambda':
+        dcmp_idx = np.round(xidx+0.5, 0).astype(int)
+
+    dcmp_idx = np.clip(dcmp_idx, 0, dcmp.size-1)
+    dcmp_r   = dcmp[ dcmp_idx ]
+
+    rlist_xfrm.append( xfrm_r )
+    rlist_dcmp.append( dcmp_r )
+
+Ax, Lx    = np.meshgrid(*rlist_xfrm)
+Ad, Ld    = np.meshgrid(*rlist_dcmp)
 
 # Create Factory configuration
-fConf   = { k: eval(v) for k, v in Config.items('ExpDecompFactory') }
-for p, r in zip(ExpDecompFactory._fitparam, rlist):
-    fConf[p] = eval( "np.mgrid[%s][0]" % r )
+fConf     = { k: eval(v) for k, v in Config.items('ExpDecompFactory') }
+for p, r in zip(ExpDecompFactory._fitparam, rlist_dcmp):
+    fConf[p] = r[0]
 fConf['CacheDir'] = os.path.join(ArgC.base, "Cache")
 
 # Read input variables.
@@ -147,22 +173,27 @@ print
 ######
 # Decompose
 ######
+LLH, PBest = FOpt.ScanW(Ax, Lx, Ad, Ld)
+dA         = Ax[0,1] - Ax[0,0]
+dL         = Lx[1,0] - Lx[0,0]
 
-### decompose; scan hyperparameters; decompose; fit from best location.
-D.Decompose(xonly=True)
-LLH, PBest        = FOpt.ScanW(A, L)
+for _ in range(1):
+    Ab     = PBest['Alpha']
+    Lb     = PBest['Lambda']
+    ini    = np.asarray( [ (Ab-dA, Lb-dL), (Ab-dA, Lb+dL), (Ab+dA, Lb) ] )
 
-for _ in range(int(NumOpt)):
     Factory.update( PBest )
     D.Decompose(xonly=True)
-    NBest, LBestmin, PBest = FOpt.FitW()
 
-### Re-decompose, extract signals, and validate that xfrm gave good moment estimates.
+    NBest, LBest, PBest = FOpt.FitW( initial_simplex = ini)
+
+### Re-decompose with the full expansion and extract signals.
 Factory.update( PBest)
 D.Decompose(reduced=False)
 FOpt.UpdateXfrm(**PBest)
-NBest, LBest = FOpt.ScanN(attr="Mom")
-D.SetN(N=NBest, attr="Mom")    # attr="Mom": use the full expansions from here on out
+
+### attr="Mom": use the full expansion from here on out
+D.SetN(N=NBest, attr="Mom")
 D.Covariance()
 if len(D.Signals) > 0:
     D.PrepSignalEstimators(reduced=False, verbose=True)
@@ -257,10 +288,13 @@ pdf = PdfPages(op('all.pdf'))
 ini =   fConf["Lambda"],   fConf["Alpha"]
 fin = Factory["Lambda"], Factory["Alpha"]
 
-Plots.cutflow      (cutflow,             pdf=pdf, fname=op('cutflow.pdf'))
+Plots.cutflow (cutflow, pdf=pdf, fname=op('cutflow.pdf'))
 
 if LLH.size > 3:
-    Plots.scan     (L, A, LLH, LBestmin, ini, fin, pdf=pdf, fname=op('hyperparameter_scan.pdf'))
+    Plots.scan (Lx, Ax, LLH, LBest, Ld, Ad, fin, pdf=pdf, fname=op('hyperparameter_scan_400.pdf'))
+    Plots.scan (Lx, Ax, LLH, LBest, Ld, Ad, fin, pdf=pdf, fname=op('hyperparameter_scan_25.pdf'), maxZ=25)
+
+
 Plots.summary_table(D,                   pdf=pdf, fname=op('signal_summary.pdf'))
 
 for p, file in ConfigIter(Config, "Plot", "PlotDefault"):
