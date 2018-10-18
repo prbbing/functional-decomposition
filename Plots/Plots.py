@@ -19,9 +19,14 @@ def _integrate(func, edges, Npt=100):
     N = len(edges) - 1
     t = np.zeros((N,))
 
+    x   = [ np.linspace(edges[n], edges[n+1], Npt + 1) for n in range (N) ]
+    x   = np.asarray(x)
+    s   = x.shape
+    z   = func( x.flatten() ).reshape(s)
+
     for n in range(N):
-        tx   = np.linspace(edges[n], edges[n+1], Npt + 1)
-        t[n] = np.trapz( func(tx), dx = 1. / Npt)
+        t[n] = np.trapz( z[n], dx = 1. / Npt)
+
     return t
 
 # Gaussian CDF
@@ -90,27 +95,27 @@ def cutflow(fig, gs, cutflow):
 
 ######## HYPERPARMETER SCAN #######
 @gsPlot(1, 2, width_ratios=[19, 1])
-def scan(fig, gs, L, A, LLH, LBest, ini, fin):
+def scan(fig, gs, L, A, LLH, LBest, Ld, Ad, fin, maxZ=200, points=False):
     ax  = [ plt.subplot(g) for g in gs ]
 
     # interpolate between data points for contouring
     triI   = tri.Triangulation(L.flatten(), A.flatten())
     ref    = tri.UniformTriRefiner(triI)
 
-    #dLLH   = np.minimum(LLH - LLH.min(), 600)
-    dLLH   = np.minimum(LLH - LBest, 600)
+    dLLH   = np.minimum(LLH - LBest, 1.5*maxZ)
     triO   = ref.refine_field(dLLH.flatten(), subdiv=3)
 
     cmap   = cm.get_cmap(name='terrain', lut=None)
-    levels = np.linspace(0, 400, 51)
+    levels = np.linspace(0, maxZ, 51)
     colors = [ '0.00', '0.25', '0.25', '0.25', '0.25']
     lws    = [   0.40,   0.25,   0.25,   0.25,   0.25]
 
     Csf    = ax[0].tricontourf(*triO, levels=levels, cmap=cmap)
     Cs     = ax[0].tricontour (*triO, levels=levels, colors=colors, linewidths=lws)
-    #sca    = ax[0].scatter(L,  A,  marker='.', s= 1.0, color='k', label="Scan Point")
-    #sca2   = ax[0].scatter(*ini,   marker='o', s=20.0, color='r', label="Initial", zorder=10)
-    sca3   = ax[0].scatter(*fin,   marker='x', s=35.0, color='r', label="Final", zorder=10)
+    if points:
+        sca = ax[0].scatter(L,  A,  marker='.', s= 1.0, color='k', label="Scan Point")
+    sca2   = ax[0].scatter(Ld, Ad, marker='o', s=20.0, color='r', label="Initial", zorder=10)
+    sca3   = ax[0].scatter(*fin,   marker='x', s=35.0, color='r', label="Final",   zorder=10)
 
     fig.colorbar(Csf, ticks=levels[::5], cax=ax[1])
 
