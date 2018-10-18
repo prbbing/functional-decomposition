@@ -516,7 +516,7 @@ class TruncatedSeries(object):
         Val      = np.zeros_like(x)
         w        = np.ones_like(x)
 
-        for D in self.Factory.Fn(x, w, Nbasis=self.Nmax):
+        for D in self.Factory.Fn(x, w):
             if D.N >= self.Nmin:
                 Val  += D.Values() * Mom[D.N]
 
