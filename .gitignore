@@ -2,6 +2,7 @@
 data/ele-cache-*
 condor
 
+Examples/*/Cache
 Examples/*/Cache/*
 Examples/*/Data/*
 Examples/*/Output/*
