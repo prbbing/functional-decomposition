@@ -532,7 +532,7 @@ class TruncatedSeries(object):
     # Get the common index range between self and other
     def _ci(self, othr):
         return ( max(self.Nmin, othr.Nmin),
-                 max(self.Nmax, othr.Nmax))
+                 min(self.Nmax, othr.Nmax))
 
     # Get the entropy of this TruncatedSeries.
     def Entropy(self):
